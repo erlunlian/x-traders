@@ -1,0 +1,14 @@
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+SQLAlchemy==2.0.43
+asyncpg==0.30.0
+greenlet==3.2.4
+psycopg[binary]==3.2.9
+psycopg2-binary==2.9.10
+alembic==1.16.4
+python-dotenv==1.1.1
+pydantic==2.11.7
+redis==6.4.0
+orjson==3.11.2
+sortedcontainers==2.4.0
+langchain-core==0.3.28
