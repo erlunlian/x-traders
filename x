@@ -15,6 +15,7 @@ NC='\033[0m' # No Color
 # Get the directory where the script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 BACKEND_DIR="$SCRIPT_DIR/backend"
+FRONTEND_DIR="$SCRIPT_DIR/frontend"
 
 # Check if we're in the right directory
 if [ ! -d "$BACKEND_DIR" ]; then
@@ -43,10 +44,18 @@ usage() {
     echo "Commands:"
     echo "  setup                 Set up the development environment"
     echo ""
+    echo "  start                 Start both backend and frontend servers"
+    echo "  stop                  Stop all running servers"
+    echo "  status                Check server status"
+    echo "  logs [backend|frontend] View server logs"
+    echo ""
     echo "  backend               Start the backend server (dev mode)"
     echo "  backend prod          Start the backend in production mode"
     echo "  backend test          Run backend tests"
     echo "  backend shell         Start Python shell with app context"
+    echo ""
+    echo "  frontend              Start the frontend server (dev mode)"
+    echo "  frontend build        Build frontend for production"
     echo ""
     echo "  db migrate [msg]      Generate a new database migration"
     echo "  db upgrade            Apply database migrations"
@@ -243,6 +252,169 @@ db_cmd() {
     esac
 }
 
+# Start both servers
+start() {
+    echo -e "${GREEN}Starting X-Traders servers...${NC}"
+    
+    # Check if servers are already running
+    if pgrep -f "uvicorn main:app" > /dev/null; then
+        echo -e "${YELLOW}Backend server is already running${NC}"
+    else
+        echo "Starting backend server..."
+        cd "$BACKEND_DIR"
+        activate_venv || exit 1
+        nohup uvicorn main:app --reload --host 0.0.0.0 --port 8000 > "$BACKEND_DIR/server.log" 2>&1 &
+        echo $! > "$BACKEND_DIR/server.pid"
+        echo -e "${GREEN}Backend started (PID: $(cat $BACKEND_DIR/server.pid))${NC}"
+    fi
+    
+    if [ -d "$FRONTEND_DIR" ]; then
+        if pgrep -f "next dev" > /dev/null; then
+            echo -e "${YELLOW}Frontend server is already running${NC}"
+        else
+            echo "Starting frontend server..."
+            cd "$FRONTEND_DIR"
+            nohup npm run dev > "$FRONTEND_DIR/server.log" 2>&1 &
+            echo $! > "$FRONTEND_DIR/server.pid"
+            echo -e "${GREEN}Frontend started (PID: $(cat $FRONTEND_DIR/server.pid))${NC}"
+        fi
+    fi
+    
+    echo ""
+    echo -e "${GREEN}Servers are running:${NC}"
+    echo "  Backend:  http://localhost:8000"
+    echo "  API Docs: http://localhost:8000/docs"
+    echo "  Frontend: http://localhost:3000"
+    echo ""
+    echo "Run './x logs' to view server logs"
+    echo "Run './x stop' to stop all servers"
+}
+
+# Stop all servers
+stop() {
+    echo -e "${YELLOW}Stopping servers...${NC}"
+    
+    # Stop backend
+    if [ -f "$BACKEND_DIR/server.pid" ]; then
+        PID=$(cat "$BACKEND_DIR/server.pid")
+        if kill -0 $PID 2>/dev/null; then
+            kill $PID
+            echo -e "${GREEN}Backend server stopped${NC}"
+        fi
+        rm "$BACKEND_DIR/server.pid"
+    else
+        # Try to find and kill by process name
+        pkill -f "uvicorn main:app" 2>/dev/null && echo -e "${GREEN}Backend server stopped${NC}"
+    fi
+    
+    # Stop frontend
+    if [ -f "$FRONTEND_DIR/server.pid" ]; then
+        PID=$(cat "$FRONTEND_DIR/server.pid")
+        if kill -0 $PID 2>/dev/null; then
+            kill $PID
+            echo -e "${GREEN}Frontend server stopped${NC}"
+        fi
+        rm "$FRONTEND_DIR/server.pid"
+    else
+        # Try to find and kill by process name
+        pkill -f "next dev" 2>/dev/null && echo -e "${GREEN}Frontend server stopped${NC}"
+    fi
+    
+    echo -e "${GREEN}All servers stopped${NC}"
+}
+
+# Check server status
+status() {
+    echo -e "${BLUE}Server Status:${NC}"
+    echo ""
+    
+    # Check backend
+    if pgrep -f "uvicorn main:app" > /dev/null; then
+        echo -e "Backend:  ${GREEN}● Running${NC} (http://localhost:8000)"
+    else
+        echo -e "Backend:  ${RED}● Stopped${NC}"
+    fi
+    
+    # Check frontend
+    if pgrep -f "next dev" > /dev/null; then
+        echo -e "Frontend: ${GREEN}● Running${NC} (http://localhost:3000)"
+    else
+        echo -e "Frontend: ${RED}● Stopped${NC}"
+    fi
+}
+
+# View server logs
+logs() {
+    case "$1" in
+        backend)
+            if [ -f "$BACKEND_DIR/server.log" ]; then
+                echo -e "${BLUE}Backend Server Logs:${NC}"
+                tail -f "$BACKEND_DIR/server.log"
+            else
+                echo -e "${YELLOW}No backend logs found${NC}"
+            fi
+            ;;
+        frontend)
+            if [ -f "$FRONTEND_DIR/server.log" ]; then
+                echo -e "${BLUE}Frontend Server Logs:${NC}"
+                tail -f "$FRONTEND_DIR/server.log"
+            else
+                echo -e "${YELLOW}No frontend logs found${NC}"
+            fi
+            ;;
+        "")
+            # Show both logs
+            echo -e "${BLUE}Server Logs (Press Ctrl+C to exit):${NC}"
+            echo ""
+            if [ -f "$BACKEND_DIR/server.log" ] && [ -f "$FRONTEND_DIR/server.log" ]; then
+                tail -f "$BACKEND_DIR/server.log" "$FRONTEND_DIR/server.log"
+            elif [ -f "$BACKEND_DIR/server.log" ]; then
+                tail -f "$BACKEND_DIR/server.log"
+            elif [ -f "$FRONTEND_DIR/server.log" ]; then
+                tail -f "$FRONTEND_DIR/server.log"
+            else
+                echo -e "${YELLOW}No server logs found${NC}"
+            fi
+            ;;
+        *)
+            echo -e "${RED}Unknown log type: $1${NC}"
+            echo "Usage: ./x logs [backend|frontend]"
+            exit 1
+            ;;
+    esac
+}
+
+# Frontend commands
+frontend_cmd() {
+    if [ ! -d "$FRONTEND_DIR" ]; then
+        echo -e "${RED}Frontend directory not found${NC}"
+        echo "The frontend application has not been set up yet"
+        exit 1
+    fi
+    
+    case "$1" in
+        ""|dev)
+            echo -e "${GREEN}Starting frontend server (development mode)...${NC}"
+            cd "$FRONTEND_DIR"
+            
+            echo "Server starting at http://localhost:3000"
+            echo -e "${YELLOW}Auto-reload enabled${NC}"
+            npm run dev
+            ;;
+        build)
+            echo -e "${GREEN}Building frontend for production...${NC}"
+            cd "$FRONTEND_DIR"
+            npm run build
+            echo -e "${GREEN}Build complete!${NC}"
+            ;;
+        *)
+            echo -e "${RED}Unknown frontend subcommand: $1${NC}"
+            echo "Available: frontend, frontend build"
+            exit 1
+            ;;
+    esac
+}
+
 # Clean up cache files
 clean() {
     echo -e "${GREEN}Cleaning up cache files...${NC}"
@@ -267,8 +439,23 @@ case "$1" in
     setup)
         setup
         ;;
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    status)
+        status
+        ;;
+    logs)
+        logs "$2"
+        ;;
     backend)
         backend_cmd "$2"
+        ;;
+    frontend)
+        frontend_cmd "$2"
         ;;
     db)
         db_cmd "$2" "$3"

@@ -1,5 +1,14 @@
 # Project Guidelines for Claude
 
+## Running the Application
+
+**Always use the `./x` CLI to manage the application:**
+- `./x start` - Start both backend and frontend servers
+- `./x stop` - Stop all servers
+- `./x restart` - Restart all servers
+- `./x status` - Check server status
+- `./x logs` - View server logs
+
 ## Code Style Rules
 
 ### Type Safety
