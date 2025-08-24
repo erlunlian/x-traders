@@ -157,59 +157,44 @@ async def get_price_history(
 ) -> List[PriceHistoryPoint]:
     """
     Get price history for a ticker aggregated into OHLC format.
-    For now, returns mock data - will be implemented with real trade aggregation.
+    Returns real trade data aggregated into candlestick format.
     """
     if ticker not in order_router.get_tickers():
         raise HTTPException(status_code=404, detail=f"Ticker not found: {ticker}")
 
-    # Time range to number of points mapping
+    # Map time ranges to PostgreSQL intervals and number of periods
     range_config = {
-        "1d": 24,  # 24 hourly points
-        "1w": 28,  # 4 points per day for a week
-        "1m": 30,  # Daily points for a month
-        "6m": 26,  # Weekly points for 6 months
-        "1y": 52,  # Weekly points for a year
+        "1d": ("1 hour", 24),     # 24 hourly candles for last day
+        "1w": ("6 hours", 28),     # 28 6-hour candles for last week
+        "1m": ("1 day", 30),       # 30 daily candles for last month
+        "6m": ("1 week", 26),      # 26 weekly candles for last 6 months
+        "1y": ("1 week", 52),      # 52 weekly candles for last year
     }
 
-    # Get num_points with a default value of 24
-    num_points = range_config.get(time_range, 24)
+    # Get interval and periods, default to 1 day if invalid range
+    interval, periods = range_config.get(time_range, ("1 hour", 24))
 
-    # Generate mock OHLC data
-    # In production, this would aggregate actual trade data
-    import random
-    from datetime import timedelta
+    # Get OHLC data from database
+    async with async_session() as session:
+        trade_repo = TradeRepository(session)
+        ohlc_data = await trade_repo.get_ohlc_history(ticker, interval, periods)
 
-    now = datetime.now()
-    base_price = 10000  # $100 in cents
+    # If no data, return empty array (no trades yet)
+    if not ohlc_data:
+        return []
+
+    # Convert to response format
     history = []
-
-    for i in range(num_points):
-        # Calculate how far back this point should be
-        periods_ago = num_points - i - 1
-        if time_range == "1d":
-            timestamp = now - timedelta(hours=periods_ago)
-        else:
-            timestamp = now - timedelta(days=periods_ago)
-
-        # Generate OHLC values with some randomness
-        open_price = base_price + random.randint(-500, 500)
-        close_price = base_price + random.randint(-500, 500)
-        high_price = max(open_price, close_price) + random.randint(0, 200)
-        low_price = min(open_price, close_price) - random.randint(0, 200)
-        volume = random.randint(100, 10000)
-
+    for candle in ohlc_data:
         history.append(
             PriceHistoryPoint(
-                timestamp=timestamp,
-                open=open_price,
-                high=high_price,
-                low=low_price,
-                close=close_price,
-                volume=volume,
+                timestamp=candle['timestamp'],
+                open=candle['open'],
+                high=candle['high'],
+                low=candle['low'],
+                close=candle['close'],
+                volume=candle['volume'],
             )
         )
-
-        # Update base price for next iteration
-        base_price = close_price
 
     return history
