@@ -18,7 +18,7 @@ class XDataRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def upsert_user_in_transaction(self, user_info: UserInfo) -> DBXUser:
+    async def upsert_user_without_commit(self, user_info: UserInfo) -> DBXUser:
         """
         Insert or update user information in cache.
         Must be called within a transaction context - does NOT commit.
@@ -51,7 +51,7 @@ class XDataRepository:
         await self.session.flush()
         return result.scalar_one()
 
-    async def upsert_tweet_in_transaction(self, tweet: Tweet, author_username: str) -> DBXTweet:
+    async def upsert_tweet_without_commit(self, tweet: Tweet, author_username: str) -> DBXTweet:
         """
         Insert or update tweet in cache.
         Must be called within a transaction context - does NOT commit.
@@ -163,7 +163,7 @@ class XDataRepository:
         )
         return list(result.scalars().all())
 
-    async def bulk_upsert_tweets_in_transaction(
+    async def bulk_upsert_tweets_in_without_commit(
         self, tweets: List[Tweet], author_username: str
     ) -> List[DBXTweet]:
         """
