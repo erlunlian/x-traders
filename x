@@ -64,6 +64,12 @@ usage() {
     echo "  db current            Show current migration version"
     echo "  db reset              Drop and recreate all tables (CAUTION!)"
     echo ""
+    echo "  tweets backfill       Fetch 100 tweets per ticker from API"
+    echo "  tweets export         Export database tweets to JSON backup"
+    echo "  tweets import [file]  Import tweets from JSON backup"
+    echo "  tweets sync           Sync database to JSON backup"
+    echo "  tweets delete         Delete all X data from database (CAUTION!)"
+    echo ""
     echo "  clean                 Clean up cache files and __pycache__"
     echo "  help                  Show this help message"
     echo ""
@@ -247,6 +253,74 @@ db_cmd() {
         *)
             echo -e "${RED}Unknown db subcommand: $1${NC}"
             echo "Available: migrate, upgrade, downgrade, history, current, reset"
+            exit 1
+            ;;
+    esac
+}
+
+# Tweet backup commands
+tweets_cmd() {
+    case "$1" in
+        backfill)
+            echo -e "${GREEN}Starting tweet backfill...${NC}"
+            cd "$BACKEND_DIR"
+            activate_venv || exit 1
+            
+            # Pass additional arguments (like --force)
+            shift
+            if [ $# -gt 0 ]; then
+                python scripts/backfill/backfill_tweets.py "$@"
+            else
+                python scripts/backfill/backfill_tweets.py
+            fi
+            ;;
+        export)
+            echo -e "${GREEN}Exporting tweets to JSON backup...${NC}"
+            cd "$BACKEND_DIR"
+            activate_venv || exit 1
+            
+            python scripts/backfill/export_tweets.py
+            ;;
+        import)
+            echo -e "${GREEN}Importing tweets from JSON backup...${NC}"
+            cd "$BACKEND_DIR"
+            activate_venv || exit 1
+            
+            # Pass the file argument if provided
+            shift
+            python scripts/backfill/import_tweets.py "$@"
+            ;;
+        sync)
+            echo -e "${GREEN}Syncing database to JSON backup...${NC}"
+            cd "$BACKEND_DIR"
+            activate_venv || exit 1
+            
+            python scripts/backfill/sync_tweets.py
+            ;;
+        delete)
+            echo -e "${YELLOW}WARNING: This will delete all X/Twitter data from the database!${NC}"
+            read -p "Are you sure? (y/N): " confirm
+            if [[ $confirm == [yY] ]]; then
+                echo -e "${GREEN}Deleting X/Twitter data...${NC}"
+                cd "$BACKEND_DIR"
+                activate_venv || exit 1
+                python scripts/delete_x_data.py
+            else
+                echo -e "${BLUE}Cancelled${NC}"
+            fi
+            ;;
+        *)
+            echo -e "${RED}Unknown tweets subcommand: $1${NC}"
+            echo "Available: backfill, export, import, sync, delete"
+            echo ""
+            echo "Examples:"
+            echo "  ./x tweets backfill          # Fetch tweets from API"
+            echo "  ./x tweets backfill --force   # Force refresh all data"
+            echo "  ./x tweets export             # Export DB to JSON"
+            echo "  ./x tweets import             # Import from latest backup"
+            echo "  ./x tweets import --list      # List available backups"
+            echo "  ./x tweets sync               # Sync DB to backup"
+            echo "  ./x tweets delete             # Delete all X data from DB (CAUTION!)"
             exit 1
             ;;
     esac
@@ -459,6 +533,9 @@ case "$1" in
         ;;
     db)
         db_cmd "$2" "$3"
+        ;;
+    tweets)
+        tweets_cmd "${@:2}"
         ;;
     clean)
         clean

@@ -1,14 +1,7 @@
-from enum import Enum
 from uuid import UUID
 
+from enums import CancelReason, MessageType
 from pydantic import BaseModel
-
-from models.core import CancelReason
-
-
-class MessageType(Enum):
-    NEW_ORDER = "NEW_ORDER"
-    CANCEL_ORDER = "CANCEL_ORDER"
 
 
 class OrderMessage(BaseModel):

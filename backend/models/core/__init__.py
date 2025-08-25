@@ -1,7 +1,8 @@
 """
-Core domain models - enums, ticker, order book
+Core domain models - ticker, order book
 """
-from models.core.enums import (
+
+from enums import (
     AccountType,
     CancelReason,
     MarketDataEventType,
@@ -9,6 +10,7 @@ from models.core.enums import (
     OrderType,
     Side,
 )
+
 from models.core.order_book import OrderBook, OrderBookEntry
 from models.core.ticker import Ticker
 

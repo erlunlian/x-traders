@@ -60,26 +60,39 @@ class XApiClient:
             requests.HTTPError: If API request fails
             Exception: If API returns error status
         """
+
         all_tweets = []
         cursor = ""
+        page_count = 0
 
         # Paginate through results to get requested number of tweets
         while len(all_tweets) < num_tweets:
+            page_count += 1
             url = f"{self.base_url}/twitter/user/last_tweets"
+            # Start with minimal params like the working curl command
             params = {
                 "userName": handle,
                 "cursor": cursor,
-                "includeReplies": True,
+                "includeReplies": False,
             }
+            # Only add cursor if we have one (for pagination)
+            if cursor:
+                params["cursor"] = cursor
 
             response = requests.get(url, headers=self.headers, params=params)
             response.raise_for_status()
 
             result = response.json()
+
             if result.get("status") != "success":
                 raise Exception(f"API error: {result.get('message', 'Unknown error')}")
 
-            tweets = result.get("tweets", [])
+            # Check if tweets are in data.tweets (nested) or directly in tweets
+            if "data" in result and "tweets" in result["data"]:
+                tweets = result["data"]["tweets"]
+            else:
+                tweets = result.get("tweets", [])
+
             if not tweets:
                 break
 
@@ -90,7 +103,9 @@ class XApiClient:
                 all_tweets.append(Tweet.from_api_response(tweet_data))
 
             # Check if there are more pages
-            if not result.get("has_next_page", False):
+            has_next = result.get("has_next_page", False)
+
+            if not has_next:
                 break
 
             cursor = result.get("next_cursor", "")

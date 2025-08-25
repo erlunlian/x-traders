@@ -15,7 +15,8 @@ from database.repositories import (
     TraderRepository,
 )
 from engine import order_router
-from models.core import CancelReason, OrderStatus, OrderType, Side, Ticker
+from enums import CancelReason, OrderStatus, OrderType, Side
+from models.core import Ticker
 from models.responses import OrderStatusResponse, PortfolioResponse, PositionInfo
 from models.schemas import OrderRequest
 

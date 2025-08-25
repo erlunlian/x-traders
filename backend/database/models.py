@@ -19,7 +19,7 @@ from sqlalchemy.dialects.postgresql import ENUM, JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from models.core import CancelReason, MarketDataEventType, OrderStatus, OrderType, Side
+from enums import CancelReason, MarketDataEventType, OrderStatus, OrderType, Side
 
 
 class Base(DeclarativeBase):

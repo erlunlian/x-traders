@@ -16,7 +16,7 @@ from models.schemas import (
     OrderMessage,
     BookState,
 )
-from models.core import CancelReason, OrderType
+from enums import CancelReason, OrderType
 
 from engine.order_book_matcher import OrderBookMatcher
 

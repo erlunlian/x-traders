@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from models.core import CancelReason, MarketDataEventType, OrderStatus
+from enums import CancelReason, MarketDataEventType, OrderStatus
 from models.schemas import BookState, OrderRequest, TradeData
 from sqlalchemy import and_, func, select, update
 from sqlalchemy.dialects.postgresql import insert

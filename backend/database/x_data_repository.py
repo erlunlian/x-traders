@@ -234,3 +234,25 @@ class XDataRepository:
         result = await self.session.execute(stmt)
         await self.session.flush()
         return list(result.scalars().all())
+
+    async def get_all_users(self) -> List[DBXUser]:
+        """
+        Get all users from the database.
+        
+        Returns:
+            List of all cached users
+        """
+        result = await self.session.execute(select(DBXUser))
+        return list(result.scalars().all())
+
+    async def get_all_tweets(self) -> List[DBXTweet]:
+        """
+        Get all tweets from the database.
+        
+        Returns:
+            List of all cached tweets
+        """
+        result = await self.session.execute(
+            select(DBXTweet).order_by(DBXTweet.tweet_created_at.desc())
+        )
+        return list(result.scalars().all())

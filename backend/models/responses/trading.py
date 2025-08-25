@@ -1,17 +1,18 @@
 """
 Models for trading service responses
 """
+
 from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
+from enums import OrderStatus, OrderType, Side
 from pydantic import BaseModel
-
-from models.core import OrderStatus, OrderType, Side
 
 
 class OrderStatusResponse(BaseModel):
     """Response for order status query"""
+
     order_id: UUID
     trader_id: UUID
     ticker: str
@@ -27,6 +28,7 @@ class OrderStatusResponse(BaseModel):
 
 class PositionInfo(BaseModel):
     """Position information"""
+
     ticker: str
     quantity: int
     avg_cost_in_cents: int
@@ -34,6 +36,7 @@ class PositionInfo(BaseModel):
 
 class PortfolioResponse(BaseModel):
     """Portfolio information"""
+
     trader_id: UUID
     cash_balance_in_cents: int
     positions: List[PositionInfo]
@@ -41,6 +44,7 @@ class PortfolioResponse(BaseModel):
 
 class OrderResult(BaseModel):
     """Result of placing an order"""
+
     success: bool
     order_id: Optional[UUID] = None
     message: str
@@ -49,6 +53,7 @@ class OrderResult(BaseModel):
 
 class CancelResult(BaseModel):
     """Result of cancelling an order"""
+
     success: bool
     message: str
     error: Optional[str] = None
@@ -56,6 +61,7 @@ class CancelResult(BaseModel):
 
 class OrderStatusResult(BaseModel):
     """Result of checking order status"""
+
     success: bool
     order_id: Optional[UUID] = None
     ticker: Optional[str] = None
@@ -69,6 +75,7 @@ class OrderStatusResult(BaseModel):
 
 class PortfolioResult(BaseModel):
     """Result of checking portfolio"""
+
     success: bool
     cash_balance_dollars: Optional[float] = None
     positions: Optional[List[dict]] = None
@@ -77,6 +84,7 @@ class PortfolioResult(BaseModel):
 
 class TraderResult(BaseModel):
     """Result of creating a trader"""
+
     success: bool
     trader_id: Optional[UUID] = None
     initial_cash_dollars: Optional[float] = None
@@ -85,6 +93,7 @@ class TraderResult(BaseModel):
 
 class PriceInfo(BaseModel):
     """Current price information for a ticker"""
+
     ticker: str
     last_price_in_cents: Optional[int]
     best_bid_in_cents: Optional[int]
@@ -96,12 +105,14 @@ class PriceInfo(BaseModel):
 
 class OrderBookLevel(BaseModel):
     """Single price level in order book"""
+
     price_in_cents: int
     quantity: int
 
 
 class OrderBookResult(BaseModel):
     """Order book snapshot result"""
+
     success: bool
     ticker: Optional[str] = None
     bids: Optional[List[OrderBookLevel]] = None
@@ -112,6 +123,7 @@ class OrderBookResult(BaseModel):
 
 class TradeInfo(BaseModel):
     """Trade information"""
+
     trade_id: UUID
     ticker: str
     price_in_cents: int
@@ -121,6 +133,7 @@ class TradeInfo(BaseModel):
 
 class RecentTradesResult(BaseModel):
     """Recent trades result"""
+
     success: bool
     ticker: Optional[str] = None
     trades: Optional[List[TradeInfo]] = None

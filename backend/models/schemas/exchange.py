@@ -2,9 +2,8 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from uuid import UUID
 
+from enums import MarketDataEventType, OrderType, Side
 from pydantic import BaseModel, ConfigDict, Field
-
-from models.core import MarketDataEventType, OrderType, Side
 
 
 class OrderRequest(BaseModel):

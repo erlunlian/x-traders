@@ -2,7 +2,7 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
-from models.core import OrderType, Side
+from enums import OrderType, Side
 from pydantic import BaseModel
 from services.trading import create_trader, place_admin_order
 

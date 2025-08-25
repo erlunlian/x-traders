@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 
 
 class UserInfo(BaseModel):
@@ -53,26 +53,60 @@ class Tweet(BaseModel):
 
     class Config:
         populate_by_name = True
+        extra = "allow"  # Allow extra fields from API
+
+    @validator("entities", pre=True)
+    def parse_entities(cls, v):
+        """Convert dict to TweetEntities object"""
+        if v and isinstance(v, dict):
+            return TweetEntities(**v)
+        return v
+
+    @validator("quoted_tweet_id", pre=True, always=True)
+    def extract_quoted_tweet_id(cls, v, values):
+        """Extract ID from quoted_tweet object if present"""
+        # If already has a value, use it
+        if v is not None:
+            return v
+        # Check for quoted_tweet in the original data (values contains raw input)
+        # Note: In Pydantic v1, we need to check the raw input differently
+        return None  # Will be handled in from_api_response for now
+
+    @validator("retweeted_tweet_id", pre=True, always=True)
+    def extract_retweeted_tweet_id(cls, v, values):
+        """Extract ID from retweeted_tweet object if present"""
+        # If already has a value, use it
+        if v is not None:
+            return v
+        # Will be handled in from_api_response for now
+        return None
 
     @classmethod
     def from_api_response(cls, tweet_data: Dict[str, Any]) -> "Tweet":
         """Create Tweet from API response, handling nested fields"""
-        # Extract quoted tweet ID
-        quoted_tweet = tweet_data.get("quoted_tweet")
-        quoted_tweet_id = quoted_tweet.get("id") if quoted_tweet else None
+        print(f"      → Processing tweet ID: {tweet_data.get('id', 'UNKNOWN')}")
+        print(f"        Text preview: {tweet_data.get('text', '')[:50]}...")
 
-        # Extract retweeted tweet ID
-        retweeted_tweet = tweet_data.get("retweeted_tweet")
-        retweeted_tweet_id = retweeted_tweet.get("id") if retweeted_tweet else None
+        # Make a copy to avoid modifying original
+        data = tweet_data.copy()
 
-        # Build entities if present
-        entities = None
-        if tweet_data.get("entities"):
-            entities = TweetEntities(**tweet_data["entities"])
+        # Extract nested IDs manually since validators can't access other fields easily
+        if "quoted_tweet" in data:
+            quoted_tweet = data.pop("quoted_tweet")
+            if quoted_tweet and isinstance(quoted_tweet, dict):
+                data["quoted_tweet_id"] = quoted_tweet.get("id")
 
-        return cls(
-            **tweet_data,
-            quoted_tweet_id=quoted_tweet_id,
-            retweeted_tweet_id=retweeted_tweet_id,
-            entities=entities,
-        )
+        if "retweeted_tweet" in data:
+            retweeted_tweet = data.pop("retweeted_tweet")
+            if retweeted_tweet and isinstance(retweeted_tweet, dict):
+                data["retweeted_tweet_id"] = retweeted_tweet.get("id")
+
+        try:
+            # Now we can just pass the data directly - validator handles entities!
+            tweet = cls(**data)
+            print(f"        ✓ Successfully created Tweet object")
+            return tweet
+        except Exception as e:
+            print(f"        ✗ Error creating Tweet object: {e}")
+            print(f"        Tweet data keys: {list(data.keys())}")
+            raise

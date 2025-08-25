@@ -2,22 +2,31 @@
 Tool registry for LangGraph agents to interact with the exchange.
 These tools are structured for easy integration with LangChain/LangGraph.
 """
+
 from typing import List
 from uuid import UUID
 
+from enums import OrderType
 from langchain_core.tools import StructuredTool
-from models.core import OrderType
+from models.responses import (
+    CancelResult,
+    OrderResult,
+    OrderStatusResult,
+    PortfolioResult,
+    TraderResult,
+)
 from models.tools import (
     BuyOrderInput,
-    SellOrderInput,
     CancelOrderInput,
-    GetOrderStatusInput,
-    GetPortfolioInput,
     CreateTraderInput,
     GetOrderBookInput,
+    GetOrderStatusInput,
+    GetPortfolioInput,
     GetPriceInput,
     GetRecentTradesInput,
+    SellOrderInput,
 )
+
 from services.market_data import (
     get_all_prices,
     get_available_tickers,
@@ -32,13 +41,6 @@ from services.trading import (
     get_portfolio,
     place_buy_order,
     place_sell_order,
-)
-from models.responses import (
-    CancelResult,
-    OrderResult,
-    OrderStatusResult,
-    PortfolioResult,
-    TraderResult,
 )
 
 
@@ -63,7 +65,7 @@ async def buy_stock(
         return OrderResult(
             success=True,
             order_id=order_id,
-            message=f"Buy order placed for {quantity} shares of {ticker}"
+            message=f"Buy order placed for {quantity} shares of {ticker}",
         )
     except Exception as e:
         return OrderResult(success=False, message="", error=str(e))
@@ -89,7 +91,7 @@ async def sell_stock(
         return OrderResult(
             success=True,
             order_id=order_id,
-            message=f"Sell order placed for {quantity} shares of {ticker}"
+            message=f"Sell order placed for {quantity} shares of {ticker}",
         )
     except Exception as e:
         return OrderResult(success=False, message="", error=str(e))
@@ -101,13 +103,12 @@ async def cancel_stock_order(trader_id: str, order_id: str) -> CancelResult:
         success = await cancel_order(UUID(trader_id), UUID(order_id))
         if success:
             return CancelResult(
-                success=True,
-                message=f"Order {order_id} cancelled successfully"
+                success=True, message=f"Order {order_id} cancelled successfully"
             )
         else:
             return CancelResult(
                 success=False,
-                message="Order cannot be cancelled (already filled or expired)"
+                message="Order cannot be cancelled (already filled or expired)",
             )
     except Exception as e:
         return CancelResult(success=False, message="", error=str(e))
@@ -172,14 +173,22 @@ async def check_order_book(ticker: str) -> dict:
         return {
             "ticker": result.ticker,
             "bids": [
-                {"price_dollars": level.price_in_cents / 100, "quantity": level.quantity}
+                {
+                    "price_dollars": level.price_in_cents / 100,
+                    "quantity": level.quantity,
+                }
                 for level in result.bids[:5]  # Top 5 levels
             ],
             "asks": [
-                {"price_dollars": level.price_in_cents / 100, "quantity": level.quantity}
+                {
+                    "price_dollars": level.price_in_cents / 100,
+                    "quantity": level.quantity,
+                }
                 for level in result.asks[:5]  # Top 5 levels
             ],
-            "last_price_dollars": result.last_price_in_cents / 100 if result.last_price_in_cents else None,
+            "last_price_dollars": (
+                result.last_price_in_cents / 100 if result.last_price_in_cents else None
+            ),
         }
     else:
         return {"error": result.error}
@@ -191,12 +200,20 @@ async def check_price(ticker: str) -> dict:
         price = await get_current_price(ticker)
         return {
             "ticker": price.ticker,
-            "last_price_dollars": price.last_price_in_cents / 100 if price.last_price_in_cents else None,
-            "best_bid_dollars": price.best_bid_in_cents / 100 if price.best_bid_in_cents else None,
-            "best_ask_dollars": price.best_ask_in_cents / 100 if price.best_ask_in_cents else None,
+            "last_price_dollars": (
+                price.last_price_in_cents / 100 if price.last_price_in_cents else None
+            ),
+            "best_bid_dollars": (
+                price.best_bid_in_cents / 100 if price.best_bid_in_cents else None
+            ),
+            "best_ask_dollars": (
+                price.best_ask_in_cents / 100 if price.best_ask_in_cents else None
+            ),
             "bid_size": price.bid_size,
             "ask_size": price.ask_size,
-            "spread_dollars": price.spread_in_cents / 100 if price.spread_in_cents else None,
+            "spread_dollars": (
+                price.spread_in_cents / 100 if price.spread_in_cents else None
+            ),
         }
     except Exception as e:
         return {"error": str(e)}
@@ -210,10 +227,18 @@ async def check_all_prices() -> dict:
             "prices": [
                 {
                     "ticker": p.ticker,
-                    "last_price_dollars": p.last_price_in_cents / 100 if p.last_price_in_cents else None,
-                    "bid_dollars": p.best_bid_in_cents / 100 if p.best_bid_in_cents else None,
-                    "ask_dollars": p.best_ask_in_cents / 100 if p.best_ask_in_cents else None,
-                    "spread_dollars": p.spread_in_cents / 100 if p.spread_in_cents else None,
+                    "last_price_dollars": (
+                        p.last_price_in_cents / 100 if p.last_price_in_cents else None
+                    ),
+                    "bid_dollars": (
+                        p.best_bid_in_cents / 100 if p.best_bid_in_cents else None
+                    ),
+                    "ask_dollars": (
+                        p.best_ask_in_cents / 100 if p.best_ask_in_cents else None
+                    ),
+                    "spread_dollars": (
+                        p.spread_in_cents / 100 if p.spread_in_cents else None
+                    ),
                 }
                 for p in prices
             ]
@@ -249,7 +274,7 @@ async def list_tickers() -> List[str]:
 def get_trading_tools() -> List[StructuredTool]:
     """
     Get all trading tools for LangGraph agents.
-    
+
     Returns:
         List of StructuredTool objects ready for use in LangGraph
     """

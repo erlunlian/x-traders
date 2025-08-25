@@ -7,10 +7,15 @@ from typing import List
 from uuid import UUID
 
 from database import async_session
-from database.repositories import LedgerRepository, TraderRepository, PositionRepository, OrderRepository, TradeRepository
+from database.repositories import (
+    LedgerRepository,
+    OrderRepository,
+    PositionRepository,
+    TradeRepository,
+    TraderRepository,
+)
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from models.core import OrderStatus
 
 router = APIRouter()
 
@@ -27,6 +32,7 @@ class TraderResponse(BaseModel):
 
 class PositionInfo(BaseModel):
     """Position information"""
+
     ticker: str
     quantity: int
     avg_cost: int
@@ -34,6 +40,7 @@ class PositionInfo(BaseModel):
 
 class OrderInfo(BaseModel):
     """Order information"""
+
     order_id: UUID
     ticker: str
     side: str
@@ -47,6 +54,7 @@ class OrderInfo(BaseModel):
 
 class TradeInfo(BaseModel):
     """Trade information"""
+
     trade_id: UUID
     ticker: str
     price: int
@@ -57,6 +65,7 @@ class TradeInfo(BaseModel):
 
 class TraderDetailResponse(BaseModel):
     """Detailed trader information"""
+
     trader_id: UUID
     is_active: bool
     is_admin: bool
@@ -119,18 +128,16 @@ async def get_trader_detail(trader_id: UUID) -> TraderDetailResponse:
 
         # Get current cash balance
         balance = await ledger_repo.get_cash_balance_in_cents(trader.trader_id)
-        
+
         # Get positions
         positions = await position_repo.get_all_positions(trader_id)
         position_info = [
             PositionInfo(
-                ticker=pos.ticker,
-                quantity=pos.quantity,
-                avg_cost=pos.avg_cost
+                ticker=pos.ticker, quantity=pos.quantity, avg_cost=pos.avg_cost
             )
             for pos in positions
         ]
-        
+
         # Get unfilled orders
         unfilled_orders = await order_repo.get_trader_unfilled_orders(trader_id)
         order_info = [
@@ -143,11 +150,11 @@ async def get_trader_detail(trader_id: UUID) -> TraderDetailResponse:
                 filled_quantity=order.filled_quantity,
                 limit_price=order.limit_price,
                 status=order.status.value,
-                created_at=order.created_at
+                created_at=order.created_at,
             )
             for order in unfilled_orders
         ]
-        
+
         # Get recent trades
         trades = await trade_repo.get_trader_trades(trader_id, limit=50)
         trade_info = [
@@ -157,7 +164,7 @@ async def get_trader_detail(trader_id: UUID) -> TraderDetailResponse:
                 price=trade.price,
                 quantity=trade.quantity,
                 side="BUY" if trade.buyer_id == trader_id else "SELL",
-                executed_at=trade.executed_at
+                executed_at=trade.executed_at,
             )
             for trade in trades
         ]
@@ -170,5 +177,5 @@ async def get_trader_detail(trader_id: UUID) -> TraderDetailResponse:
             created_at=trader.created_at,
             positions=position_info,
             unfilled_orders=order_info,
-            recent_trades=trade_info
+            recent_trades=trade_info,
         )

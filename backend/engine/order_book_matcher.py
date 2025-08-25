@@ -1,8 +1,9 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Tuple
 
 from database.models import DBOrder
-from models.core import OrderStatus, OrderType, Side, OrderBook, OrderBookEntry
+from enums import OrderStatus, OrderType, Side
+from models.core import OrderBook, OrderBookEntry
 from models.schemas import TradeData
 
 
@@ -152,7 +153,7 @@ class OrderBookMatcher:
                 seller_id=maker_entry.trader_id,
                 taker_order_id=taker_order.order_id,
                 maker_order_id=maker_entry.order_id,
-                executed_at=datetime.utcnow(),
+                executed_at=datetime.now(timezone.utc),
             )
         else:
             return TradeData(
@@ -165,7 +166,7 @@ class OrderBookMatcher:
                 seller_id=taker_order.trader_id,
                 taker_order_id=taker_order.order_id,
                 maker_order_id=maker_entry.order_id,
-                executed_at=datetime.utcnow(),
+                executed_at=datetime.now(timezone.utc),
             )
 
     def add_order_to_book(self, order: DBOrder):
