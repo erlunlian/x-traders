@@ -34,7 +34,7 @@ class TweetBackfiller:
     def __init__(self, force_refresh: bool = False, stale_hours: int = 24):
         self.api_client = XApiClient()
         self.backup_service = BackupService()
-        self.tweets_per_ticker = 20
+        self.tweets_per_ticker = 100
         self.force_refresh = force_refresh
         self.stale_threshold = timedelta(hours=stale_hours)
 
