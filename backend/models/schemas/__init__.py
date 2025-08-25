@@ -16,6 +16,7 @@ from models.schemas.exchange import (
     Position,
     TradeData,
 )
+from models.schemas.x_api import Tweet, TweetEntities, UserInfo
 
 __all__ = [
     # Engine messages
@@ -31,4 +32,8 @@ __all__ = [
     "Portfolio",
     "Position",
     "TradeData",
+    # X API schemas
+    "Tweet",
+    "TweetEntities",
+    "UserInfo",
 ]

@@ -181,3 +181,67 @@ class DBTraderAccount(Base):
     trader_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
+
+
+class DBXUser(Base):
+    """Cache for X/Twitter user information"""
+
+    __tablename__ = "x_users"
+
+    username = Column(String(100), primary_key=True)  # Twitter handle
+    name = Column(String(200), nullable=True)
+    description = Column(String(1000), nullable=True)
+    location = Column(String(200), nullable=True)
+    num_followers = Column(Integer, default=0)
+    num_following = Column(Integer, default=0)
+    fetched_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationship to tweets
+    tweets = relationship("DBXTweet", back_populates="author")
+
+    __table_args__ = (
+        Index("ix_x_users_fetched_at", "fetched_at"),
+    )
+
+
+class DBXTweet(Base):
+    """Cache for X/Twitter tweet data"""
+
+    __tablename__ = "x_tweets"
+
+    tweet_id = Column(String(100), primary_key=True)
+    author_username = Column(String(100), ForeignKey("x_users.username"), nullable=False)
+    text = Column(String(5000), nullable=False)  # X allows up to 4000 chars for premium
+    
+    # Metrics
+    retweet_count = Column(Integer, default=0)
+    reply_count = Column(Integer, default=0)
+    like_count = Column(Integer, default=0)
+    quote_count = Column(Integer, default=0)
+    view_count = Column(BIGINT, default=0)
+    bookmark_count = Column(Integer, default=0)
+    
+    # Tweet metadata
+    is_reply = Column(Boolean, default=False)
+    reply_to_tweet_id = Column(String(100), nullable=True)
+    conversation_id = Column(String(100), nullable=True)
+    in_reply_to_username = Column(String(100), nullable=True)
+    quoted_tweet_id = Column(String(100), nullable=True)
+    retweeted_tweet_id = Column(String(100), nullable=True)
+    
+    # Entities stored as JSONB for flexibility
+    entities = Column(JSONB, nullable=True)
+    
+    # Timestamps
+    tweet_created_at = Column(String(100), nullable=False)  # Store original format from API
+    fetched_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationship
+    author = relationship("DBXUser", back_populates="tweets")
+    
+    __table_args__ = (
+        Index("ix_x_tweets_author", "author_username"),
+        Index("ix_x_tweets_conversation", "conversation_id"),
+        Index("ix_x_tweets_fetched_at", "fetched_at"),
+        Index("ix_x_tweets_created_at", "tweet_created_at"),
+    )

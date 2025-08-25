@@ -3,11 +3,32 @@
 ## Running the Application
 
 **Always use the `./x` CLI to manage the application:**
-- `./x start` - Start both backend and frontend servers
-- `./x stop` - Stop all servers
-- `./x restart` - Restart all servers
-- `./x status` - Check server status
-- `./x logs` - View server logs
+Commands:
+-  setup                 Set up the development environment
+
+-  start                 Start both backend and frontend servers
+-  stop                  Stop all running servers
+-  status                Check server status
+-  logs [backend|frontend] View server logs
+
+-  backend               Start the backend server (dev mode)
+-  backend prod          Start the backend in production mode
+-  backend test          Run backend tests
+-  backend shell         Start Python shell with app context
+
+-  frontend              Start the frontend server (dev mode)
+-  frontend build        Build frontend for production
+
+-  db migrate [msg]      Generate a new database migration
+-  db upgrade            Apply database migrations
+-  db downgrade          Rollback last migration
+-  db history            Show migration history
+-  db current            Show current migration version
+-  db reset              Drop and recreate all tables (CAUTION!)
+
+-  clean                 Clean up cache files and __pycache__
+-  help                  Show this help message
+
 
 ## Code Style Rules
 
