@@ -243,5 +243,5 @@ class DBXTweet(Base):
         Index("ix_x_tweets_author", "author_username"),
         Index("ix_x_tweets_conversation", "conversation_id"),
         Index("ix_x_tweets_fetched_at", "fetched_at"),
-        Index("ix_x_tweets_created_at", "tweet_created_at"),
+        Index("ix_x_tweets_tweet_created_at", "tweet_created_at"),
     )
