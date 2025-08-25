@@ -119,6 +119,16 @@ class OrderRepository:
         )
         return result.scalars().all()
 
+    async def get_trader_unfilled_orders(self, trader_id: uuid.UUID) -> List[DBOrder]:
+        """Get all unfilled orders for a specific trader"""
+        result = await self.session.execute(
+            select(DBOrder)
+            .where(DBOrder.trader_id == trader_id)
+            .where(DBOrder.status.in_([OrderStatus.PENDING, OrderStatus.PARTIAL]))
+            .order_by(DBOrder.created_at.desc())
+        )
+        return result.scalars().all()
+
     async def get_expired_orders(self, limit: int = 100) -> List[DBOrder]:
         """Get orders that have exceeded their TIF"""
         from datetime import datetime, timezone
@@ -199,6 +209,18 @@ class TradeRepository:
         )
         return result.scalars().all()
 
+    async def get_trader_trades(self, trader_id: uuid.UUID, limit: int = 50) -> List[DBTrade]:
+        """Get recent trades for a specific trader (as buyer or seller)"""
+        from sqlalchemy import or_
+        
+        result = await self.session.execute(
+            select(DBTrade)
+            .where(or_(DBTrade.buyer_id == trader_id, DBTrade.seller_id == trader_id))
+            .order_by(DBTrade.executed_at.desc())
+            .limit(limit)
+        )
+        return result.scalars().all()
+
     async def get_ohlc_history(
         self, ticker: str, interval: str, periods: int
     ) -> List[Dict]:
@@ -214,7 +236,7 @@ class TradeRepository:
             List of dicts with timestamp, open, high, low, close, volume
         """
         from datetime import datetime, timedelta, timezone
-        
+
         # Determine time window and truncation
         now = datetime.now(timezone.utc)
         if interval == "1 hour":
@@ -236,8 +258,9 @@ class TradeRepository:
 
         # Simpler query using GROUP BY instead of window functions for the main aggregation
         from sqlalchemy import text
-        
-        query = text("""
+
+        query = text(
+            """
             WITH time_periods AS (
                 SELECT 
                     date_trunc(:trunc, executed_at) AS period,
@@ -279,7 +302,8 @@ class TradeRepository:
                 volume
             FROM period_ohlc
             ORDER BY period ASC
-        """)
+        """
+        )
 
         result = await self.session.execute(
             query,
@@ -312,16 +336,18 @@ class TradeRepository:
             i = 0
             while i < len(ohlc_data):
                 # Take up to 6 hourly candles and combine them
-                group = ohlc_data[i:min(i+6, len(ohlc_data))]
+                group = ohlc_data[i : min(i + 6, len(ohlc_data))]
                 if group:
-                    grouped_data.append({
-                        "timestamp": group[0]["timestamp"],
-                        "open": group[0]["open"],
-                        "high": max(g["high"] for g in group),
-                        "low": min(g["low"] for g in group),
-                        "close": group[-1]["close"],
-                        "volume": sum(g["volume"] for g in group),
-                    })
+                    grouped_data.append(
+                        {
+                            "timestamp": group[0]["timestamp"],
+                            "open": group[0]["open"],
+                            "high": max(g["high"] for g in group),
+                            "low": min(g["low"] for g in group),
+                            "close": group[-1]["close"],
+                            "volume": sum(g["volume"] for g in group),
+                        }
+                    )
                 i += 6
             ohlc_data = grouped_data
 
@@ -597,13 +623,19 @@ class TraderRepository:
         self.session = session
 
     async def create_trader_in_transaction_without_commit(
-        self, trader_id: Optional[uuid.UUID] = None
+        self,
+        trader_id: Optional[uuid.UUID] = None,
+        is_admin: bool = False,
     ) -> DBTraderAccount:
         """
         Create a new trader account.
         Must be called within a transaction context - does NOT commit.
         """
-        trader = DBTraderAccount(trader_id=trader_id or uuid.uuid4(), is_active=True)
+        trader = DBTraderAccount(
+            trader_id=trader_id or uuid.uuid4(),
+            is_active=True,
+            is_admin=is_admin,
+        )
         self.session.add(trader)
         await self.session.flush()
         return trader
@@ -623,3 +655,12 @@ class TraderRepository:
             select(DBTraderAccount).where(DBTraderAccount.trader_id == trader_id)
         )
         return result.scalar_one_or_none()
+
+    async def get_all_traders(self) -> List[DBTraderAccount]:
+        """Get all traders"""
+        result = await self.session.execute(
+            select(DBTraderAccount)
+            .where(DBTraderAccount.is_active)
+            .order_by(DBTraderAccount.created_at.desc())
+        )
+        return result.scalars().all()

@@ -114,8 +114,8 @@ class DBLedgerEntry(Base):
     trade_id = Column(UUID(as_uuid=True), ForeignKey("trades.trade_id"), nullable=True)
     trader_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     account = Column(String(50), nullable=False)  # "CASH" or "SHARES:@ticker"
-    debit_in_cents = Column(Integer, default=0)
-    credit_in_cents = Column(Integer, default=0)
+    debit_in_cents = Column(BIGINT, default=0)
+    credit_in_cents = Column(BIGINT, default=0)
     description = Column(String(200))
 
     __table_args__ = (
@@ -180,3 +180,4 @@ class DBTraderAccount(Base):
 
     trader_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     is_active = Column(Boolean, default=True)
+    is_admin = Column(Boolean, default=False)

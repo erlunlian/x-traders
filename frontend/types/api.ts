@@ -48,6 +48,14 @@ export interface Agent {
   created_at: string;
 }
 
+export interface Trader {
+  trader_id: string;
+  is_active: boolean;
+  is_admin: boolean;
+  balance_in_cents: number;
+  created_at: string;
+}
+
 export interface Position {
   ticker: string;
   quantity: number;
@@ -62,3 +70,21 @@ export interface Portfolio {
   cash_balance_in_cents: number;
   total_value_in_cents: number;
 }
+
+export type AdminOrderRequest = {
+  trader_id: string;
+  ticker: string;
+  side: "BUY" | "SELL";
+  order_type: "MARKET" | "LIMIT" | "IOC";
+  quantity: number;
+  limit_price_in_cents?: number | null;
+  tif_seconds?: number;
+};
+
+export type AdminOrderResponse = {
+  order_id: string;
+};
+
+export type CreateTraderResponse = {
+  trader_id: string;
+};
