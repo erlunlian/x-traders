@@ -16,6 +16,15 @@ from models.responses.trading import (
     TradeInfo,
     TraderResult,
 )
+from models.responses.x_data import (
+    AllXUsersResult,
+    RecentTweetsResult,
+    TweetData,
+    TweetsByIdsResult,
+    UserTweetsResult,
+    XUserData,
+    XUserInfoResult,
+)
 
 __all__ = [
     "CancelResult",
@@ -31,4 +40,12 @@ __all__ = [
     "RecentTradesResult",
     "TradeInfo",
     "TraderResult",
+    # X/Twitter data
+    "XUserInfoResult",
+    "UserTweetsResult",
+    "TweetsByIdsResult",
+    "AllXUsersResult",
+    "RecentTweetsResult",
+    "TweetData",
+    "XUserData",
 ]

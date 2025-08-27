@@ -74,6 +74,33 @@ class GetRecentTradesInput(BaseModel):
     limit: int = Field(default=20, description="Number of trades to return (max 100)")
 
 
+# X/Twitter data tool inputs
+class GetXUserInfoInput(BaseModel):
+    """Input for getting X/Twitter user information"""
+    username: str = Field(description="Twitter username (without @)")
+
+
+class GetUserTweetsInput(BaseModel):
+    """Input for getting tweets from a user"""
+    username: str = Field(description="Twitter username (without @)")
+    limit: int = Field(default=20, description="Number of tweets to return (max 100)")
+
+
+class GetTweetsByIdsInput(BaseModel):
+    """Input for getting specific tweets by IDs"""
+    tweet_ids: list[str] = Field(description="List of tweet IDs to fetch")
+
+
+class GetAllXUsersInput(BaseModel):
+    """Input for getting all cached X/Twitter users"""
+    pass  # No parameters needed
+
+
+class GetRecentTweetsInput(BaseModel):
+    """Input for getting recent tweets from all cached users"""
+    limit: int = Field(default=50, description="Number of tweets to return (max 200)")
+
+
 __all__ = [
     "BuyOrderInput",
     "SellOrderInput",
@@ -84,4 +111,10 @@ __all__ = [
     "GetOrderBookInput",
     "GetPriceInput",
     "GetRecentTradesInput",
+    # X/Twitter data tools
+    "GetXUserInfoInput",
+    "GetUserTweetsInput",
+    "GetTweetsByIdsInput",
+    "GetAllXUsersInput",
+    "GetRecentTweetsInput",
 ]
