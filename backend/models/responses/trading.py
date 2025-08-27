@@ -6,8 +6,9 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
+from pydantic import BaseModel, Field
+
 from enums import OrderStatus, OrderType, Side
-from pydantic import BaseModel
 
 
 class OrderStatusResponse(BaseModel):
@@ -115,8 +116,8 @@ class OrderBookResult(BaseModel):
 
     success: bool
     ticker: Optional[str] = None
-    bids: Optional[List[OrderBookLevel]] = None
-    asks: Optional[List[OrderBookLevel]] = None
+    bids: List[OrderBookLevel] = Field(default_factory=list)
+    asks: List[OrderBookLevel] = Field(default_factory=list)
     last_price_in_cents: Optional[int] = None
     error: Optional[str] = None
 
@@ -136,5 +137,5 @@ class RecentTradesResult(BaseModel):
 
     success: bool
     ticker: Optional[str] = None
-    trades: Optional[List[TradeInfo]] = None
+    trades: List[TradeInfo] = Field(default_factory=list)
     error: Optional[str] = None

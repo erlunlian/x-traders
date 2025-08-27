@@ -3,10 +3,9 @@ Model configuration for LLM agents
 """
 
 from enum import Enum
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Sequence
 
 from pydantic import BaseModel, Field
-from sqlalchemy import Sequence
 
 from enums import LLMModel
 
@@ -177,7 +176,7 @@ class ModelRegistry:
     @classmethod
     def get_cheapest(cls, provider: Optional[ModelProvider] = None) -> ModelConfig:
         """Get the cheapest model, optionally filtered by provider"""
-        models: Sequence[ModelConfig] = cls._registry.values()
+        models: Sequence[ModelConfig] = List(cls._registry.values())
         if provider:
             models = [m for m in models if m.provider == provider]
         return min(models, key=lambda m: m.input_cost_per_1k + m.output_cost_per_1k)
@@ -185,7 +184,7 @@ class ModelRegistry:
     @classmethod
     def get_largest_context(cls, provider: Optional[ModelProvider] = None) -> ModelConfig:
         """Get model with largest context window"""
-        models: Sequence[ModelConfig] = cls._registry.values()
+        models: Sequence[ModelConfig] = List(cls._registry.values())
         if provider:
             models = [m for m in models if m.provider == provider]
         return max(models, key=lambda m: m.context_window)

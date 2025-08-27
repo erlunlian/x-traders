@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from database.repositories import XDataRepository
 from models.schemas.backup import (
     BackupMetadata,
@@ -15,8 +17,7 @@ from models.schemas.backup import (
     BackupUser,
     TweetBackup,
 )
-from models.schemas.x_api import Tweet, UserInfo
-from sqlalchemy.ext.asyncio import AsyncSession
+from models.schemas.x_api import TweetInfo, UserInfo
 
 
 class BackupService:
@@ -58,6 +59,7 @@ class BackupService:
             db_users = await repo.get_all_users()
 
             backup_users = []
+            current_time = datetime.now(timezone.utc)
             for user in db_users:
                 backup_users.append(
                     BackupUser(
@@ -67,7 +69,7 @@ class BackupService:
                         location=user.location,
                         num_followers=user.num_followers,
                         num_following=user.num_following,
-                        fetched_at=user.fetched_at,
+                        fetched_at=current_time,  # Use export time since UserInfo doesn't have fetched_at
                     )
                 )
             stats.users_processed = len(backup_users)
@@ -170,7 +172,7 @@ class BackupService:
 
             # Import tweets
             for backup_tweet in backup.tweets:
-                tweet = Tweet(
+                tweet = TweetInfo(
                     tweet_id=backup_tweet.tweet_id,
                     text=backup_tweet.text,
                     retweet_count=backup_tweet.retweet_count,
@@ -231,7 +233,7 @@ class BackupService:
         return sorted(self.backup_dir.glob("tweets_backup*.json"))
 
     async def merge_api_data_to_backup(
-        self, users: List[UserInfo], tweets: List[Tweet]
+        self, users: List[UserInfo], tweets: List[TweetInfo]
     ) -> TweetBackup:
         """
         Merge API data into existing backup or create new one

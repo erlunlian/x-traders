@@ -3,8 +3,10 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from uuid import UUID
 
-from enums import Side
 from sortedcontainers import SortedDict
+
+from enums import Side
+from models.schemas import BookState, OrderBookSnapshot
 
 
 @dataclass
@@ -25,9 +27,7 @@ class OrderBook:
     """In-memory order book for a single ticker"""
 
     ticker: str
-    bids: SortedDict = field(
-        default_factory=lambda: SortedDict(lambda x: -x)
-    )  # Sorted high to low
+    bids: SortedDict = field(default_factory=lambda: SortedDict(lambda x: -x))  # Sorted high to low
     asks: SortedDict = field(default_factory=SortedDict)  # Sorted low to high
     last_price_in_cents: Optional[int] = None
 
@@ -86,7 +86,7 @@ class OrderBook:
 
         return best_ask[0] - best_bid[0]
 
-    def get_book_state(self):
+    def get_book_state(self) -> BookState:
         """Get current book state for market data"""
         from models.schemas import BookState
 
@@ -96,17 +96,12 @@ class OrderBook:
         return BookState(
             best_bid_in_cents=best_bid[0] if best_bid else None,
             best_ask_in_cents=best_ask[0] if best_ask else None,
-            bid_size=(
-                sum(o.remaining_quantity for o in best_bid[1]) if best_bid else None
-            ),
-            ask_size=(
-                sum(o.remaining_quantity for o in best_ask[1]) if best_ask else None
-            ),
+            bid_size=(sum(o.remaining_quantity for o in best_bid[1]) if best_bid else None),
+            ask_size=(sum(o.remaining_quantity for o in best_ask[1]) if best_ask else None),
         )
 
-    def to_snapshot(self):
+    def to_snapshot(self) -> OrderBookSnapshot:
         """Convert to API snapshot format"""
-        from models.schemas import OrderBookSnapshot
 
         bids: Dict[int, int] = {}
         for price, orders in self.bids.items():

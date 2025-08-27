@@ -9,16 +9,10 @@ from database.repositories import (
     PositionRepository,
     TradeRepository,
 )
-from models.schemas import (
-    CancelOrderMessage,
-    MessageType,
-    NewOrderMessage,
-    OrderMessage,
-    BookState,
-)
-from enums import CancelReason, OrderType
-
 from engine.order_book_matcher import OrderBookMatcher
+from enums import CancelReason, OrderType
+from models.schemas import BookState, CancelOrderMessage, MessageType, NewOrderMessage, OrderMessage
+from models.schemas.exchange import OrderBookSnapshot
 
 
 class SymbolOrderProcessor:
@@ -30,7 +24,7 @@ class SymbolOrderProcessor:
     def __init__(self, ticker: str):
         self.ticker = ticker
         self.matcher = OrderBookMatcher(ticker)
-        self.order_queue = asyncio.Queue()
+        self.order_queue: asyncio.Queue[OrderMessage] = asyncio.Queue()
         self.running = False
 
     async def start(self):
@@ -53,9 +47,7 @@ class SymbolOrderProcessor:
         msg = NewOrderMessage(order_id=order_id)
         await self.order_queue.put(msg)
 
-    async def cancel_order(
-        self, order_id: UUID, cancel_reason: CancelReason = CancelReason.USER
-    ):
+    async def cancel_order(self, order_id: UUID, cancel_reason: CancelReason = CancelReason.USER):
         """Queue order cancellation"""
         msg = CancelOrderMessage(order_id=order_id, cancel_reason=cancel_reason)
         await self.order_queue.put(msg)
@@ -64,9 +56,7 @@ class SymbolOrderProcessor:
         """Process order message based on type"""
         if msg.message_type == MessageType.CANCEL_ORDER:
             cancel_msg = CancelOrderMessage(**msg.model_dump())
-            await self._process_cancellation(
-                cancel_msg.order_id, cancel_msg.cancel_reason
-            )
+            await self._process_cancellation(cancel_msg.order_id, cancel_msg.cancel_reason)
         else:
             await self._process_new_order(msg.order_id)
 
@@ -77,9 +67,7 @@ class SymbolOrderProcessor:
 
             try:
                 # Update order status in database
-                order = await order_repo.cancel_order_without_commit(
-                    order_id, cancel_reason
-                )
+                order = await order_repo.cancel_order_without_commit(order_id, cancel_reason)
 
                 # Remove from in-memory book
                 self.matcher.cancel_order(order)
@@ -160,7 +148,7 @@ class SymbolOrderProcessor:
             # Commit everything atomically
             await session.commit()
 
-    def get_order_book_snapshot(self):
+    def get_order_book_snapshot(self) -> OrderBookSnapshot:
         """Get current order book snapshot"""
         return self.matcher.order_book.to_snapshot()
 

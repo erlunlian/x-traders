@@ -235,9 +235,7 @@ async def create_trader(
         trader_repo = TraderRepository(session)
         ledger_repo = LedgerRepository(session)
 
-        trader = await trader_repo.create_trader_in_transaction_without_commit(
-            is_admin=is_admin
-        )
+        trader = await trader_repo.create_trader_in_transaction_without_commit(is_admin=is_admin)
         await ledger_repo.initialize_trader_cash_without_commit(
             trader.trader_id, initial_cash_in_cents
         )
@@ -267,6 +265,7 @@ async def _validate_buy_order(
             raise ValueError(f"Invalid or inactive trader: {trader_id}")
 
         if order_type == OrderType.LIMIT:
+            assert limit_price_in_cents is not None
             ledger_repo = LedgerRepository(session)
             cash_balance = await ledger_repo.get_cash_balance_in_cents(trader_id)
             required_cash = quantity * limit_price_in_cents
@@ -288,9 +287,7 @@ async def _validate_sell_order(trader_id: UUID, ticker: str, quantity: int) -> N
 
         if not position or position.quantity < quantity:
             available = position.quantity if position else 0
-            raise ValueError(
-                f"Insufficient shares of {ticker}: have {available}, need {quantity}"
-            )
+            raise ValueError(f"Insufficient shares of {ticker}: have {available}, need {quantity}")
 
 
 async def _submit_order(

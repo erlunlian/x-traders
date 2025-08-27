@@ -15,7 +15,7 @@ from models.schemas.webhook import (
     WebhookProcessingResult,
     WebhookTweet,
 )
-from models.schemas.x_api import Tweet, UserInfo
+from models.schemas.x_api import TweetInfo, UserInfo
 
 
 class XWebhookService:
@@ -28,15 +28,15 @@ class XWebhookService:
 
     def verify_api_key(self, received_api_key: str) -> bool:
         """Verify the webhook request is from TwitterAPI.io"""
-        return received_api_key == self.expected_api_key
+        return bool(received_api_key == self.expected_api_key)
 
     def is_valid_username(self, username: str) -> bool:
         """Check if username (without @) is in our tickers list"""
         return username.lower() in self.valid_usernames
 
-    def webhook_tweet_to_model(self, webhook_tweet: WebhookTweet) -> Tweet:
+    def webhook_tweet_to_model(self, webhook_tweet: WebhookTweet) -> TweetInfo:
         """Convert webhook tweet format to our Tweet model"""
-        return Tweet(
+        return TweetInfo(
             tweet_id=webhook_tweet.id,
             text=webhook_tweet.text,
             retweet_count=webhook_tweet.retweet_count,

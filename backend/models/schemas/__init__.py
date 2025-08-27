@@ -1,6 +1,7 @@
 """
 Data schemas for exchange operations and engine messages
 """
+
 from models.schemas.engine_messages import (
     CancelOrderMessage,
     MessageType,
@@ -16,7 +17,7 @@ from models.schemas.exchange import (
     Position,
     TradeData,
 )
-from models.schemas.x_api import Tweet, TweetEntities, UserInfo
+from models.schemas.x_api import TweetEntities, TweetInfo, UserInfo
 
 __all__ = [
     # Engine messages
@@ -33,7 +34,7 @@ __all__ = [
     "Position",
     "TradeData",
     # X API schemas
-    "Tweet",
+    "TweetInfo",
     "TweetEntities",
     "UserInfo",
 ]

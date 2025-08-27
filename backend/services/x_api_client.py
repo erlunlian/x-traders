@@ -3,7 +3,7 @@ from typing import List
 
 import requests
 
-from models.schemas.x_api import Tweet, UserInfo
+from models.schemas.x_api import TweetInfo, UserInfo
 
 
 class XApiClient:
@@ -43,11 +43,11 @@ class XApiClient:
             name=data.get("name"),
             description=data.get("description"),
             location=data.get("location"),
-            followers=data.get("followers", 0),
-            following=data.get("following", 0),
+            num_followers=data.get("followers", 0),
+            num_following=data.get("following", 0),
         )
 
-    def get_last_tweets(self, handle: str, num_tweets: int = 20) -> List[Tweet]:
+    def get_last_tweets(self, handle: str, num_tweets: int = 20) -> List[TweetInfo]:
         """Get the last tweets from a user.
 
         Args:
@@ -62,7 +62,7 @@ class XApiClient:
             Exception: If API returns error status
         """
 
-        all_tweets = []
+        all_tweets: List[TweetInfo] = []
         cursor = ""
         page_count = 0
 
@@ -101,7 +101,7 @@ class XApiClient:
                 if len(all_tweets) >= num_tweets:
                     break
 
-                all_tweets.append(Tweet.from_api_response(tweet_data))
+                all_tweets.append(TweetInfo.from_api_response(tweet_data))
 
             # Check if there are more pages
             has_next = result.get("has_next_page", False)
@@ -115,7 +115,7 @@ class XApiClient:
 
         return all_tweets[:num_tweets]
 
-    def get_tweet_by_ids(self, tweet_ids: List[str]) -> List[Tweet]:
+    def get_tweet_by_ids(self, tweet_ids: List[str]) -> List[TweetInfo]:
         """Get tweets by their IDs.
 
         Args:
@@ -142,4 +142,4 @@ class XApiClient:
             raise Exception(f"API error: {result.get('message', 'Unknown error')}")
 
         tweets = result.get("tweets", [])
-        return [Tweet.from_api_response(tweet_data) for tweet_data in tweets]
+        return [TweetInfo.from_api_response(tweet_data) for tweet_data in tweets]

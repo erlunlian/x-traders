@@ -3,6 +3,10 @@ from contextlib import asynccontextmanager
 from typing import List
 
 import uvicorn
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+
 from api.admin import router as admin_router
 from api.exchange import router as exchange_router
 from api.market_data import router as market_data_router
@@ -11,10 +15,7 @@ from api.traders import router as traders_router
 from api.x_webhook import router as x_webhook_router
 from config import TICKERS
 from database import init_db
-from dotenv import load_dotenv
 from engine import OrderExpirationService, order_router
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 
 # Load environment variables
 load_dotenv()
@@ -92,8 +93,6 @@ async def root():
 @app.get("/api/tickers")
 async def get_tickers() -> List[str]:
     """Get list of tradeable tickers"""
-    from engine import order_router
-
     if not order_router:
         raise HTTPException(status_code=503, detail="Exchange not initialized")
     return order_router.get_tickers()

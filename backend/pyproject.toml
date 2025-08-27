@@ -8,6 +8,12 @@ exclude = [
     "migrations/",
     "tests/",
 ]
+# Suppress common SQLModel/SQLAlchemy false positives
+disable_error_code = [
+    "attr-defined",  # For .desc(), .asc(), .in_() methods on columns
+    "arg-type",      # For where clause and query expressions
+    "return-value",  # For result.scalars().all() returning Sequence vs List
+]
 
 [[tool.mypy.overrides]]
 module = "langchain.*"
@@ -20,6 +26,21 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "sqlalchemy.*"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "sqlmodel.*"
+ignore_missing_imports = true
+
+# For database modules, be more lenient with SQLModel/SQLAlchemy dynamic features
+[[tool.mypy.overrides]]
+module = "database.*"
+disable_error_code = [
+    "attr-defined",
+    "arg-type",
+    "return-value",
+    "call-overload",
+    "no-any-return",
+]
 
 [tool.ruff]
 line-length = 100

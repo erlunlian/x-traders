@@ -3,7 +3,7 @@ Agent manager service that orchestrates all AI agents
 """
 
 import asyncio
-from typing import Dict, List
+from typing import Any, Dict, List
 from uuid import UUID
 
 from database import async_session
@@ -15,12 +15,12 @@ from services.agents.autonomous_agent import AutonomousAgent
 class AgentManager:
     """Manages all running AI agents"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.agents: Dict[UUID, AutonomousAgent] = {}
         self.running_tasks: Dict[UUID, asyncio.Task] = {}
         self.running = False
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the agent manager and all active agents"""
         self.running = True
 
@@ -37,7 +37,7 @@ class AgentManager:
 
         print(f"All agents started. Managing {len(self.agents)} agents.")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop all agents and the manager"""
         self.running = False
 
@@ -47,7 +47,7 @@ class AgentManager:
 
         print("All agents stopped.")
 
-    async def start_agent(self, agent: Agent):
+    async def start_agent(self, agent: Agent) -> None:
         """Start a single agent"""
         if agent.agent_id in self.agents:
             print(f"Agent {agent.name} already running")
@@ -65,7 +65,7 @@ class AgentManager:
 
         print(f"Started agent: {agent.name} (ID: {agent.agent_id})")
 
-    async def stop_agent(self, agent_id: UUID):
+    async def stop_agent(self, agent_id: UUID) -> None:
         """Stop a single agent"""
         if agent_id not in self.agents:
             return
@@ -87,7 +87,7 @@ class AgentManager:
         del self.agents[agent_id]
         print(f"Stopped agent ID: {agent_id}")
 
-    async def restart_agent(self, agent_id: UUID):
+    async def restart_agent(self, agent_id: UUID) -> None:
         """Restart an agent"""
         # Stop if running
         await self.stop_agent(agent_id)
@@ -100,7 +100,7 @@ class AgentManager:
         if agent and agent.is_active:
             await self.start_agent(agent)
 
-    async def get_agent_status(self, agent_id: UUID) -> Dict:
+    async def get_agent_status(self, agent_id: UUID) -> Dict[str, Any]:
         """Get status of a specific agent"""
         if agent_id not in self.agents:
             return {"status": "not_running"}
@@ -114,7 +114,7 @@ class AgentManager:
             "agent_name": agent.agent.name,
         }
 
-    async def get_all_agent_statuses(self) -> List[Dict]:
+    async def get_all_agent_statuses(self) -> List[Dict[str, Any]]:
         """Get status of all agents"""
         statuses = []
 
@@ -132,7 +132,7 @@ class AgentManager:
 
         return statuses
 
-    async def monitor_agents(self):
+    async def monitor_agents(self) -> None:
         """Monitor agent health and restart if needed"""
         while self.running:
             try:

@@ -2,9 +2,8 @@ import asyncio
 from typing import Dict, List
 from uuid import UUID
 
-from models.schemas import OrderBookSnapshot
-
 from engine.symbol_order_processor import SymbolOrderProcessor
+from models.schemas import OrderBookSnapshot
 
 
 class OrderRouter:
@@ -13,11 +12,11 @@ class OrderRouter:
     Manages lifecycle of all symbol processors.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.processors: Dict[str, SymbolOrderProcessor] = {}
         self.processor_tasks: Dict[str, asyncio.Task] = {}
 
-    async def initialize(self, tickers: List[str]):
+    async def initialize(self, tickers: List[str]) -> None:
         """
         Create and start order processors for each ticker.
         Rebuild order books from database.
@@ -34,7 +33,7 @@ class OrderRouter:
             task = asyncio.create_task(processor.start())
             self.processor_tasks[ticker] = task
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """Stop all processors gracefully"""
         # Stop all processors
         for processor in self.processors.values():
@@ -47,14 +46,14 @@ class OrderRouter:
         # Wait for all tasks to complete
         await asyncio.gather(*self.processor_tasks.values(), return_exceptions=True)
 
-    async def submit_order(self, order_id: UUID, ticker: str):
+    async def submit_order(self, order_id: UUID, ticker: str) -> None:
         """Route order to correct processor"""
         if ticker not in self.processors:
             raise ValueError(f"No processor for ticker: {ticker}")
 
         await self.processors[ticker].submit_order(order_id)
 
-    async def cancel_order(self, order_id: UUID, ticker: str, cancel_reason=None):
+    async def cancel_order(self, order_id: UUID, ticker: str, cancel_reason=None) -> None:
         """Route cancellation to correct processor"""
         from models.core import CancelReason
 

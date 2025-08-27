@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from database import async_session
-from database.models import DBXTweet, DBXUser
+from database.models import XTweet, XUser
 from sqlalchemy import delete
 
 
@@ -18,11 +18,11 @@ async def delete_all_x_data():
     """Delete all X users and tweets from database"""
     async with async_session() as session:
         # Delete all tweets first (due to foreign key)
-        tweets_result = await session.execute(delete(DBXTweet))
+        tweets_result = await session.execute(delete(XTweet))
         tweets_deleted = tweets_result.rowcount
 
         # Delete all users
-        users_result = await session.execute(delete(DBXUser))
+        users_result = await session.execute(delete(XUser))
         users_deleted = users_result.rowcount
 
         await session.commit()

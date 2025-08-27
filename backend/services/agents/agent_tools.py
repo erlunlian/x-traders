@@ -3,13 +3,14 @@ Tool registry for LangGraph agents to interact with the exchange.
 These tools are structured for easy integration with LangChain/LangGraph.
 """
 
-from typing import List
+from typing import List, Optional
 from uuid import UUID
+
+from langchain_core.tools import StructuredTool
 
 from database import get_db_transaction
 from database.repositories import XDataRepository
 from enums import OrderType
-from langchain_core.tools import StructuredTool
 from models.responses import (
     AllXUsersResult,
     CancelResult,
@@ -73,7 +74,7 @@ async def buy_stock(
     ticker: str,
     quantity: int,
     order_type: str = "MARKET",
-    limit_price_in_cents: int = None,
+    limit_price_in_cents: Optional[int] = None,
 ) -> OrderResult:
     """Place a buy order for stocks"""
     try:
@@ -99,7 +100,7 @@ async def sell_stock(
     ticker: str,
     quantity: int,
     order_type: str = "MARKET",
-    limit_price_in_cents: int = None,
+    limit_price_in_cents: Optional[int] = None,
 ) -> OrderResult:
     """Place a sell order for stocks"""
     try:
@@ -618,7 +619,7 @@ def get_x_data_tools() -> List[StructuredTool]:
 
 def get_utility_tools() -> List[StructuredTool]:
     return [
-        StructuredTool(
+        StructuredTool.from_function(
             func=rest,
             name="rest",
             description="Take a break for a specified duration in minutes",

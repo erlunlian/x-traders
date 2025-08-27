@@ -10,11 +10,8 @@ class UserInfo(BaseModel):
     name: str
     description: Optional[str] = None
     location: Optional[str] = None
-    num_followers: int = Field(default=0, alias="followers")
-    num_following: int = Field(default=0, alias="following")
-
-    class Config:
-        populate_by_name = True
+    num_followers: int = 0
+    num_following: int = 0
 
 
 class TweetEntities(BaseModel):
@@ -31,28 +28,27 @@ class TweetEntities(BaseModel):
         extra = "allow"  # Allow additional fields we might not know about
 
 
-class Tweet(BaseModel):
+class TweetInfo(BaseModel):
     """X/Twitter tweet data"""
 
-    tweet_id: str = Field(alias="id")
+    tweet_id: str
     text: str
-    retweet_count: int = Field(default=0, alias="retweetCount")
-    reply_count: int = Field(default=0, alias="replyCount")
-    like_count: int = Field(default=0, alias="likeCount")
-    quote_count: int = Field(default=0, alias="quoteCount")
-    view_count: int = Field(default=0, alias="viewCount")
-    created_at: str = Field(alias="createdAt")
-    bookmark_count: int = Field(default=0, alias="bookmarkCount")
-    is_reply: bool = Field(default=False, alias="isReply")
-    reply_to_tweet_id: Optional[str] = Field(default=None, alias="inReplyToId")
-    conversation_id: Optional[str] = Field(default=None, alias="conversationId")
-    in_reply_to_username: Optional[str] = Field(default=None, alias="inReplyToUsername")
+    retweet_count: int = 0
+    reply_count: int = 0
+    like_count: int = 0
+    quote_count: int = 0
+    view_count: int = 0
+    created_at: str
+    bookmark_count: int = 0
+    is_reply: bool = False
+    reply_to_tweet_id: Optional[str] = None
+    conversation_id: Optional[str] = None
+    in_reply_to_username: Optional[str] = None
     quoted_tweet_id: Optional[str] = None
     retweeted_tweet_id: Optional[str] = None
     entities: Optional[TweetEntities] = None
 
     class Config:
-        populate_by_name = True
         extra = "allow"  # Allow extra fields from API
 
     @validator("entities", pre=True)
@@ -82,27 +78,41 @@ class Tweet(BaseModel):
         return None
 
     @classmethod
-    def from_api_response(cls, tweet_data: Dict[str, Any]) -> "Tweet":
-        """Create Tweet from API response, handling nested fields"""
+    def from_api_response(cls, tweet_data: Dict[str, Any]) -> "TweetInfo":
+        """Create Tweet from API response, handling nested fields and converting from camelCase"""
         print(f"      → Processing tweet ID: {tweet_data.get('id', 'UNKNOWN')}")
         print(f"        Text preview: {tweet_data.get('text', '')[:50]}...")
 
-        # Make a copy to avoid modifying original
-        data = tweet_data.copy()
+        # Map API camelCase fields to snake_case
+        data = {
+            "tweet_id": tweet_data.get("id"),
+            "text": tweet_data.get("text"),
+            "retweet_count": tweet_data.get("retweetCount", 0),
+            "reply_count": tweet_data.get("replyCount", 0),
+            "like_count": tweet_data.get("likeCount", 0),
+            "quote_count": tweet_data.get("quoteCount", 0),
+            "view_count": tweet_data.get("viewCount", 0),
+            "created_at": tweet_data.get("createdAt"),
+            "bookmark_count": tweet_data.get("bookmarkCount", 0),
+            "is_reply": tweet_data.get("isReply", False),
+            "reply_to_tweet_id": tweet_data.get("inReplyToId"),
+            "conversation_id": tweet_data.get("conversationId"),
+            "in_reply_to_username": tweet_data.get("inReplyToUsername"),
+            "entities": tweet_data.get("entities"),
+        }
 
-        # Extract nested IDs manually since validators can't access other fields easily
-        if "quoted_tweet" in data:
-            quoted_tweet = data.pop("quoted_tweet")
+        # Extract nested IDs from quoted/retweeted tweets
+        if "quoted_tweet" in tweet_data:
+            quoted_tweet = tweet_data["quoted_tweet"]
             if quoted_tweet and isinstance(quoted_tweet, dict):
                 data["quoted_tweet_id"] = quoted_tweet.get("id")
 
-        if "retweeted_tweet" in data:
-            retweeted_tweet = data.pop("retweeted_tweet")
+        if "retweeted_tweet" in tweet_data:
+            retweeted_tweet = tweet_data["retweeted_tweet"]
             if retweeted_tweet and isinstance(retweeted_tweet, dict):
                 data["retweeted_tweet_id"] = retweeted_tweet.get("id")
 
         try:
-            # Now we can just pass the data directly - validator handles entities!
             tweet = cls(**data)
             print(f"        ✓ Successfully created Tweet object")
             return tweet
