@@ -54,6 +54,60 @@ class AccountType(str, Enum):
     SHARES = "SHARES"  # Will be prefixed with ticker, e.g., "SHARES:@elonmusk"
 
 
+class AgentDecisionTrigger(str, Enum):
+    """What triggered an agent's decision"""
+    TWEET = "TWEET"  # Reacting to a tweet
+    AUTONOMOUS = "AUTONOMOUS"  # Agent decided on its own
+    SCHEDULED = "SCHEDULED"  # Periodic review
+    MARKET_EVENT = "MARKET_EVENT"  # Price movement, trade, etc
+
+
+class AgentAction(str, Enum):
+    """Actions an agent can take"""
+    BUY = "BUY"
+    SELL = "SELL"
+    HOLD = "HOLD"
+    RESEARCH = "RESEARCH"
+    REST = "REST"
+    CONTEMPLATE = "CONTEMPLATE"
+    CHECK_MARKET = "CHECK_MARKET"
+    ANALYZE_TWEETS = "ANALYZE_TWEETS"
+
+
+class AgentThoughtType(str, Enum):
+    """Types of thoughts in agent's decision process"""
+    THINKING = "THINKING"  # General thinking
+    ANALYZING = "ANALYZING"  # Analyzing data
+    DECIDING = "DECIDING"  # Making a decision
+    EXECUTING = "EXECUTING"  # Executing action
+    REFLECTING = "REFLECTING"  # Contemplating results
+
+
+class AgentMemoryType(str, Enum):
+    """Types of agent memory"""
+    WORKING = "WORKING"  # Current working memory
+    COMPRESSED = "COMPRESSED"  # Compressed older memories
+    INSIGHTS = "INSIGHTS"  # Learned patterns and insights
+
+
+class LLMModel(str, Enum):
+    """Available LLM models for agents - values are actual API model strings"""
+    # OpenAI models
+    GPT_4O = "gpt-4o-2024-08-06"  # GPT-4o latest
+    GPT_4O_MINI = "gpt-4o-mini-2024-07-18"  # GPT-4o mini - cost efficient
+    GPT_5 = "gpt-5-2025-08-07"  # GPT-5 full model
+    GPT_5_MINI = "gpt-5-mini-2025-08-07"  # GPT-5 mini version
+    GPT_5_NANO = "gpt-5-nano-2025-08-07"  # GPT-5 nano - smallest and fastest
+    
+    # Anthropic models  
+    CLAUDE_35_SONNET = "claude-3.5-sonnet-20241022"  # Claude 3.5 Sonnet
+    CLAUDE_35_HAIKU = "claude-3.5-haiku-20241022"  # Claude 3.5 Haiku
+    
+    # xAI Grok models
+    GROK_BETA = "grok-beta"  # Current beta model
+    GROK_2 = "grok-2-1212"  # Grok 2
+
+
 # Export all enums
 __all__ = [
     "Side",
@@ -63,4 +117,9 @@ __all__ = [
     "MarketDataEventType",
     "MessageType",
     "AccountType",
+    "AgentDecisionTrigger",
+    "AgentAction",
+    "AgentThoughtType",
+    "AgentMemoryType",
+    "LLMModel",
 ]

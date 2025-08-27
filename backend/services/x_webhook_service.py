@@ -5,7 +5,7 @@ Service for processing webhook data from TwitterAPI.io
 import os
 from typing import List
 
-from database.x_data_repository import XDataRepository
+from database.repositories import XDataRepository
 from models.core import Ticker
 from models.schemas.webhook import (
     ProcessedTweet,

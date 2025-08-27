@@ -5,6 +5,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     BIGINT,
+    DECIMAL,
     Boolean,
     CheckConstraint,
     Column,
@@ -19,7 +20,18 @@ from sqlalchemy.dialects.postgresql import ENUM, JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from enums import CancelReason, MarketDataEventType, OrderStatus, OrderType, Side
+from enums import (
+    AgentAction,
+    AgentDecisionTrigger,
+    AgentMemoryType,
+    AgentThoughtType,
+    CancelReason,
+    LLMModel,
+    MarketDataEventType,
+    OrderStatus,
+    OrderType,
+    Side,
+)
 
 
 class Base(DeclarativeBase):
@@ -40,9 +52,7 @@ class DBOrder(Base):
     trader_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     ticker = Column(String(50), nullable=False, index=True)
     side = Column(ENUM(Side, name="order_side", create_constraint=True), nullable=False)
-    order_type = Column(
-        ENUM(OrderType, name="order_type", create_constraint=True), nullable=False
-    )
+    order_type = Column(ENUM(OrderType, name="order_type", create_constraint=True), nullable=False)
     quantity = Column(Integer, nullable=False)
     limit_price = Column(Integer, nullable=True)
     filled_quantity = Column(Integer, default=0)
@@ -136,9 +146,7 @@ class DBPosition(Base):
     quantity = Column(Integer, default=0, nullable=False)
     avg_cost = Column(Integer, default=0)  # Cents - only updated on buys
 
-    __table_args__ = (
-        CheckConstraint("quantity >= 0", name="check_no_negative_positions"),
-    )
+    __table_args__ = (CheckConstraint("quantity >= 0", name="check_no_negative_positions"),)
 
 
 class DBMarketDataOutbox(Base):
@@ -152,9 +160,7 @@ class DBMarketDataOutbox(Base):
 
     event_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_type = Column(
-        ENUM(
-            MarketDataEventType, name="market_data_event_type", create_constraint=True
-        ),
+        ENUM(MarketDataEventType, name="market_data_event_type", create_constraint=True),
         nullable=False,
     )
     ticker = Column(String(50), nullable=False)
@@ -199,9 +205,7 @@ class DBXUser(Base):
     # Relationship to tweets
     tweets = relationship("DBXTweet", back_populates="author")
 
-    __table_args__ = (
-        Index("ix_x_users_fetched_at", "fetched_at"),
-    )
+    __table_args__ = (Index("ix_x_users_fetched_at", "fetched_at"),)
 
 
 class DBXTweet(Base):
@@ -212,7 +216,7 @@ class DBXTweet(Base):
     tweet_id = Column(String(100), primary_key=True)
     author_username = Column(String(100), ForeignKey("x_users.username"), nullable=False)
     text = Column(String(5000), nullable=False)  # X allows up to 4000 chars for premium
-    
+
     # Metrics
     retweet_count = Column(Integer, default=0)
     reply_count = Column(Integer, default=0)
@@ -220,7 +224,7 @@ class DBXTweet(Base):
     quote_count = Column(Integer, default=0)
     view_count = Column(BIGINT, default=0)
     bookmark_count = Column(Integer, default=0)
-    
+
     # Tweet metadata
     is_reply = Column(Boolean, default=False)
     reply_to_tweet_id = Column(String(100), nullable=True)
@@ -228,20 +232,150 @@ class DBXTweet(Base):
     in_reply_to_username = Column(String(100), nullable=True)
     quoted_tweet_id = Column(String(100), nullable=True)
     retweeted_tweet_id = Column(String(100), nullable=True)
-    
+
     # Entities stored as JSONB for flexibility
     entities = Column(JSONB, nullable=True)
-    
+
     # Timestamps
     tweet_created_at = Column(String(100), nullable=False)  # Store original format from API
     fetched_at = Column(DateTime(timezone=True), server_default=func.now())
-    
+
     # Relationship
     author = relationship("DBXUser", back_populates="tweets")
-    
+
     __table_args__ = (
         Index("ix_x_tweets_author", "author_username"),
         Index("ix_x_tweets_conversation", "conversation_id"),
         Index("ix_x_tweets_fetched_at", "fetched_at"),
         Index("ix_x_tweets_tweet_created_at", "tweet_created_at"),
+    )
+
+
+class DBAIAgent(Base):
+    """AI trading agent configuration"""
+
+    __tablename__ = "ai_agents"
+
+    agent_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(100), nullable=False, unique=True)
+    trader_id = Column(UUID(as_uuid=True), ForeignKey("trader_accounts.trader_id"), nullable=False)
+
+    # Model configuration
+    llm_model = Column(ENUM(LLMModel, name="llm_model", create_constraint=True), nullable=False)
+    temperature = Column(DECIMAL(3, 2), default=0.7)  # 0=deterministic, 1=creative
+    system_prompt = Column(String(5000), nullable=False)
+
+    # Status
+    is_active = Column(Boolean, default=True)
+
+    # Basic tracking
+    total_decisions = Column(Integer, default=0)
+    last_decision_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Tweet processing tracking
+    last_processed_tweet_at = Column(DateTime(timezone=True), nullable=True)  # Track by timestamp
+
+    # Relationships
+    trader_account = relationship("DBTraderAccount")
+    decisions = relationship(
+        "DBAgentDecision", back_populates="agent", cascade="all, delete-orphan"
+    )
+    memory_snapshots = relationship(
+        "DBAgentMemory", back_populates="agent", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        Index("ix_ai_agents_active", "is_active"),
+        Index("ix_ai_agents_trader", "trader_id"),
+    )
+
+
+class DBAgentDecision(Base):
+    """Agent decision tracking"""
+
+    __tablename__ = "agent_decisions"
+
+    decision_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    agent_id = Column(UUID(as_uuid=True), ForeignKey("ai_agents.agent_id"), nullable=False)
+
+    # What triggered this decision
+    trigger_type = Column(
+        ENUM(AgentDecisionTrigger, name="agent_decision_trigger", create_constraint=True),
+        nullable=False,
+        default=AgentDecisionTrigger.AUTONOMOUS,
+    )
+    trigger_tweet_id = Column(String(100), ForeignKey("x_tweets.tweet_id"), nullable=True)
+
+    # The decision
+    action = Column(ENUM(AgentAction, name="agent_action", create_constraint=True), nullable=False)
+    ticker = Column(String(50), nullable=True, index=True)  # NULL for non-trade actions
+    quantity = Column(Integer, nullable=True)  # NULL for non-trade actions
+    reasoning = Column(String(2000), nullable=True)  # Agent's explanation
+
+    # Execution (for trade actions)
+    order_id = Column(UUID(as_uuid=True), ForeignKey("orders.order_id"), nullable=True)
+    executed = Column(Boolean, default=False)
+
+    # Relationships
+    agent = relationship("DBAIAgent", back_populates="decisions")
+    thoughts = relationship(
+        "DBAgentThought", back_populates="decision", cascade="all, delete-orphan"
+    )
+    trigger_tweet = relationship("DBXTweet")
+    order = relationship("DBOrder")
+
+    __table_args__ = (
+        Index("ix_agent_decisions_agent_time", "agent_id", "created_at"),
+        Index("ix_agent_decisions_ticker", "ticker"),
+        Index("ix_agent_decisions_trigger", "trigger_type"),
+        Index("ix_agent_decisions_action", "action"),
+    )
+
+
+class DBAgentThought(Base):
+    """Individual thoughts in decision process for webapp display"""
+
+    __tablename__ = "agent_thoughts"
+
+    thought_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    decision_id = Column(
+        UUID(as_uuid=True), ForeignKey("agent_decisions.decision_id"), nullable=False
+    )
+    agent_id = Column(UUID(as_uuid=True), ForeignKey("ai_agents.agent_id"), nullable=False)
+
+    step_number = Column(Integer, nullable=False)
+    thought_type = Column(
+        ENUM(AgentThoughtType, name="agent_thought_type", create_constraint=True), nullable=False
+    )
+    content = Column(String(2000), nullable=False)  # What the agent is thinking
+
+    # Relationship
+    decision = relationship("DBAgentDecision", back_populates="thoughts")
+
+    __table_args__ = (
+        Index("ix_agent_thoughts_decision", "decision_id", "step_number"),
+        Index("ix_agent_thoughts_type", "thought_type"),
+    )
+
+
+class DBAgentMemory(Base):
+    """Agent memory storage with compression"""
+
+    __tablename__ = "agent_memory"
+
+    memory_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    agent_id = Column(UUID(as_uuid=True), ForeignKey("ai_agents.agent_id"), nullable=False)
+
+    memory_type = Column(
+        ENUM(AgentMemoryType, name="agent_memory_type", create_constraint=True), nullable=False
+    )
+    content = Column(String(10000), nullable=False)
+    token_count = Column(Integer, nullable=False)
+
+    # Relationship
+    agent = relationship("DBAIAgent", back_populates="memory_snapshots")
+
+    __table_args__ = (
+        Index("ix_agent_memory_agent_time", "agent_id", "created_at"),
+        Index("ix_agent_memory_type", "memory_type"),
     )

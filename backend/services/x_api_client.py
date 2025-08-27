@@ -2,6 +2,7 @@ import os
 from typing import List
 
 import requests
+
 from models.schemas.x_api import Tweet, UserInfo
 
 

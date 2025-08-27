@@ -17,7 +17,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from database import async_session
-from database.x_data_repository import XDataRepository
+from database.repositories import XDataRepository
 from dotenv import load_dotenv
 from models.core import Ticker
 from models.schemas.backup import BackupStats

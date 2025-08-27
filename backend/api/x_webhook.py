@@ -1,13 +1,13 @@
 """
 API endpoint for receiving X/Twitter webhooks
 """
-from fastapi import APIRouter, Depends, Header, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from database.x_data_repository import XDataRepository
+from database.repositories import XDataRepository
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from models.schemas.webhook import WebhookPayload, WebhookProcessingResult
 from services.x_webhook_service import XWebhookService
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/webhook", tags=["x_webhook"])
 
@@ -23,7 +23,7 @@ async def receive_tweet_webhook(
 ) -> WebhookProcessingResult:
     """
     Receive tweet webhook from TwitterAPI.io
-    
+
     This endpoint:
     1. Verifies the API key matches our configured key
     2. Validates that tweets are from usernames in our tickers list

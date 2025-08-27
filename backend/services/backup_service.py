@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
-from database.x_data_repository import XDataRepository
+from database.repositories import XDataRepository
 from models.schemas.backup import (
     BackupMetadata,
     BackupStats,

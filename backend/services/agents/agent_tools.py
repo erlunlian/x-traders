@@ -7,7 +7,7 @@ from typing import List
 from uuid import UUID
 
 from database import get_db_transaction
-from database.x_data_repository import XDataRepository
+from database.repositories import XDataRepository
 from enums import OrderType
 from langchain_core.tools import StructuredTool
 from models.responses import (
@@ -50,7 +50,6 @@ from models.tools import (
     GetXUserInfoInput,
     SellOrderInput,
 )
-
 from services.market_data import (
     get_all_prices,
     get_available_tickers,
@@ -213,7 +212,9 @@ async def check_order_book(ticker: str) -> OrderBookData:
                     for level in result.asks[:5]  # Top 5 levels
                 ],
                 last_price_dollars=(
-                    result.last_price_in_cents / 100 if result.last_price_in_cents else None
+                    result.last_price_in_cents / 100
+                    if result.last_price_in_cents
+                    else None
                 ),
             )
         else:
@@ -264,9 +265,7 @@ async def check_all_prices() -> AllPricesResult:
                 best_ask_dollars=(
                     p.best_ask_in_cents / 100 if p.best_ask_in_cents else None
                 ),
-                spread_dollars=(
-                    p.spread_in_cents / 100 if p.spread_in_cents else None
-                ),
+                spread_dollars=(p.spread_in_cents / 100 if p.spread_in_cents else None),
             )
             for p in prices
         ]
@@ -289,9 +288,7 @@ async def check_recent_trades(ticker: str, limit: int = 20) -> RecentTradesData:
                 for trade in result.trades
             ]
             return RecentTradesData(
-                success=True,
-                ticker=result.ticker,
-                trades=trade_data
+                success=True, ticker=result.ticker, trades=trade_data
             )
         else:
             return RecentTradesData(success=False, error=result.error)
@@ -476,6 +473,15 @@ async def get_recent_tweets(limit: int = 50) -> RecentTweetsResult:
         return RecentTweetsResult(success=False, error=str(e))
 
 
+# Agent utility tools
+async def rest(duration_minutes: int = 5) -> dict:
+    """Take a break for a specified duration"""
+    import asyncio
+
+    await asyncio.sleep(duration_minutes * 60)
+    return {"success": True, "rested": True, "duration_minutes": duration_minutes}
+
+
 def get_trading_tools() -> List[StructuredTool]:
     """
     Get all trading tools for LangGraph agents.
@@ -607,4 +613,15 @@ def get_x_data_tools() -> List[StructuredTool]:
             args_schema=GetRecentTweetsInput,
             coroutine=get_recent_tweets,
         ),
+    ]
+
+
+def get_utility_tools() -> List[StructuredTool]:
+    return [
+        StructuredTool(
+            func=rest,
+            name="rest",
+            description="Take a break for a specified duration in minutes",
+            coroutine=rest,
+        )
     ]
