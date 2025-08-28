@@ -7,12 +7,14 @@ from enum import Enum
 
 class Side(str, Enum):
     """Order side - buy or sell"""
+
     BUY = "BUY"
     SELL = "SELL"
 
 
 class OrderType(str, Enum):
     """Types of orders supported"""
+
     MARKET = "MARKET"
     LIMIT = "LIMIT"
     IOC = "IOC"  # Immediate or Cancel (for market orders that shouldn't wait)
@@ -20,6 +22,7 @@ class OrderType(str, Enum):
 
 class OrderStatus(str, Enum):
     """Order lifecycle states"""
+
     PENDING = "PENDING"  # Not yet in book (being validated)
     PARTIAL = "PARTIAL"  # Partially filled
     FILLED = "FILLED"  # Completely filled
@@ -29,6 +32,7 @@ class OrderStatus(str, Enum):
 
 class CancelReason(str, Enum):
     """Reasons why an order was cancelled"""
+
     USER = "USER"  # User requested cancellation
     EXPIRED = "EXPIRED"  # Time in force expired
     IOC_UNFILLED = "IOC_UNFILLED"  # IOC order couldn't fill immediately
@@ -37,6 +41,7 @@ class CancelReason(str, Enum):
 
 class MarketDataEventType(str, Enum):
     """Types of market data events"""
+
     TRADE = "TRADE"
     QUOTE = "QUOTE"  # Best bid/ask update
     DEPTH = "DEPTH"  # Full order book update
@@ -44,18 +49,21 @@ class MarketDataEventType(str, Enum):
 
 class MessageType(str, Enum):
     """Engine message types"""
+
     NEW_ORDER = "NEW_ORDER"
     CANCEL_ORDER = "CANCEL_ORDER"
 
 
 class AccountType(str, Enum):
     """Account types for ledger entries"""
+
     CASH = "CASH"
     SHARES = "SHARES"  # Will be prefixed with ticker, e.g., "SHARES:@elonmusk"
 
 
 class AgentDecisionTrigger(str, Enum):
     """What triggered an agent's decision"""
+
     TWEET = "TWEET"  # Reacting to a tweet
     AUTONOMOUS = "AUTONOMOUS"  # Agent decided on its own
     SCHEDULED = "SCHEDULED"  # Periodic review
@@ -64,6 +72,7 @@ class AgentDecisionTrigger(str, Enum):
 
 class AgentAction(str, Enum):
     """Actions an agent can take"""
+
     BUY = "BUY"
     SELL = "SELL"
     HOLD = "HOLD"
@@ -76,6 +85,7 @@ class AgentAction(str, Enum):
 
 class AgentThoughtType(str, Enum):
     """Types of thoughts in agent's decision process"""
+
     THINKING = "THINKING"  # General thinking
     ANALYZING = "ANALYZING"  # Analyzing data
     DECIDING = "DECIDING"  # Making a decision
@@ -85,27 +95,76 @@ class AgentThoughtType(str, Enum):
 
 class AgentMemoryType(str, Enum):
     """Types of agent memory"""
+
     WORKING = "WORKING"  # Current working memory
     COMPRESSED = "COMPRESSED"  # Compressed older memories
     INSIGHTS = "INSIGHTS"  # Learned patterns and insights
 
 
+class ModelProvider(str, Enum):
+    """LLM providers"""
+
+    OPENAI = "openai"
+    ANTHROPIC = "anthropic"
+    XAI = "xai"
+    AZURE_OPENAI = "azure_openai"
+
+
 class LLMModel(str, Enum):
     """Available LLM models for agents - values are actual API model strings"""
+
     # OpenAI models
-    GPT_4O = "gpt-4o-2024-08-06"  # GPT-4o latest
-    GPT_4O_MINI = "gpt-4o-mini-2024-07-18"  # GPT-4o mini - cost efficient
+    GPT_4_O = "gpt-4o-2024-08-06"  # GPT-4o latest
+    GPT_4_O_MINI = "gpt-4o-mini-2024-07-18"  # GPT-4o mini - cost efficient
     GPT_5 = "gpt-5-2025-08-07"  # GPT-5 full model
     GPT_5_MINI = "gpt-5-mini-2025-08-07"  # GPT-5 mini version
     GPT_5_NANO = "gpt-5-nano-2025-08-07"  # GPT-5 nano - smallest and fastest
-    
-    # Anthropic models  
-    CLAUDE_35_SONNET = "claude-3.5-sonnet-20241022"  # Claude 3.5 Sonnet
-    CLAUDE_35_HAIKU = "claude-3.5-haiku-20241022"  # Claude 3.5 Haiku
-    
+
+    # azure openai models
+    GPT_4_O_AZURE = "gpt-4o"
+    GPT_4_O_MINI_AZURE = "gpt-4o-mini"
+    GPT_4_1_NANO_AZURE = "gpt-4.1-nano"
+    GPT_5_AZURE = "gpt-5"
+    GPT_5_MINI_AZURE = "gpt-5-mini"
+    GPT_5_NANO_AZURE = "gpt-5-nano"
+
+    # Anthropic models
+    CLAUDE_3_5_SONNET = "claude-3.5-sonnet-20241022"  # Claude 3.5 Sonnet
+    CLAUDE_3_5_HAIKU = "claude-3.5-haiku-20241022"  # Claude 3.5 Haiku
+
     # xAI Grok models
     GROK_BETA = "grok-beta"  # Current beta model
     GROK_2 = "grok-2-1212"  # Grok 2
+
+    def get_provider(self) -> ModelProvider:
+        """Get the provider for the model"""
+        mapper = {
+            self.GPT_4_O: ModelProvider.OPENAI,
+            self.GPT_4_O_MINI: ModelProvider.OPENAI,
+            self.GPT_5: ModelProvider.OPENAI,
+            self.GPT_5_MINI: ModelProvider.OPENAI,
+            self.GPT_5_NANO: ModelProvider.OPENAI,
+            self.CLAUDE_3_5_SONNET: ModelProvider.ANTHROPIC,
+            self.CLAUDE_3_5_HAIKU: ModelProvider.ANTHROPIC,
+            self.GROK_BETA: ModelProvider.XAI,
+            self.GROK_2: ModelProvider.XAI,
+            self.GPT_4_O_AZURE: ModelProvider.AZURE_OPENAI,
+            self.GPT_4_O_MINI_AZURE: ModelProvider.AZURE_OPENAI,
+            self.GPT_4_1_NANO_AZURE: ModelProvider.AZURE_OPENAI,
+            self.GPT_5_AZURE: ModelProvider.AZURE_OPENAI,
+            self.GPT_5_MINI_AZURE: ModelProvider.AZURE_OPENAI,
+            self.GPT_5_NANO_AZURE: ModelProvider.AZURE_OPENAI,
+        }
+        return mapper[self]
+
+    def get_azure_api_version(self) -> str:
+        """Get the API version for the model"""
+        mapper = {
+            self.GPT_4_O_MINI_AZURE: "2025-01-01-preview",
+            self.GPT_5_NANO_AZURE: "2025-04-01-preview",
+            self.GPT_4_1_NANO_AZURE: "2025-01-01-preview",
+        }
+        return mapper[self]
 
 
 # Export all enums

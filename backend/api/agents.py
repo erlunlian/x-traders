@@ -5,14 +5,20 @@ AI Agents API endpoints
 from typing import List, Optional
 from uuid import UUID
 
+from fastapi import APIRouter, HTTPException
+
 from database import async_session
-from database.repositories import LedgerRepository
+from database.repositories import LedgerRepository, PositionRepository
 from database.repositories_agents import AgentRepository
 from database.repositories_traders import TraderRepository
+from database.repositories_trades import TradeRepository
+from sqlalchemy import func
+from sqlmodel import select
 from enums import LLMModel
-from fastapi import APIRouter, HTTPException
 from models.schemas.agents import (
     Agent,
+    AgentLeaderboardEntry,
+    AgentLeaderboardResponse,
     AgentListResponse,
     AgentMemoryState,
     AgentStats,
@@ -21,6 +27,7 @@ from models.schemas.agents import (
     DecisionListResponse,
     UpdateAgentRequest,
 )
+from services.agents.agent_manager import agent_manager
 
 router = APIRouter()
 
@@ -58,12 +65,17 @@ async def create_agent(request: CreateAgentRequest) -> Agent:
             name=request.name,
             trader_id=trader.trader_id,
             llm_model=request.llm_model,
-            system_prompt=request.system_prompt,
+            personality_prompt=request.personality_prompt,
             temperature=request.temperature,
             is_active=request.is_active,
         )
 
         await session.commit()
+
+        # Start the agent if it's active
+        if agent.is_active:
+            await agent_manager.start_agent(agent)
+
         return agent
 
 
@@ -90,6 +102,98 @@ async def list_agents(
         return AgentListResponse(agents=agents, total=len(agents))
 
 
+@router.get("/status", response_model=List[dict])
+async def get_all_agent_statuses() -> List[dict]:
+    """
+    Get the running status of all agents.
+    """
+    return await agent_manager.get_all_agent_statuses()
+
+
+@router.get("/leaderboard", response_model=AgentLeaderboardResponse)
+async def get_agent_leaderboard() -> AgentLeaderboardResponse:
+    """
+    Get agent leaderboard with performance metrics.
+    """
+    async with async_session() as session:
+        agent_repo = AgentRepository(session)
+        ledger_repo = LedgerRepository(session)
+        position_repo = PositionRepository(session)
+        trade_repo = TradeRepository(session)
+        
+        # Get all agents
+        agents = await agent_repo.list_agents(limit=1000)
+        
+        leaderboard_entries = []
+        for agent in agents:
+            # Get current cash balance
+            balance = await ledger_repo.get_cash_balance_in_cents(agent.trader_id)
+            
+            # Get positions and calculate total value
+            positions = await position_repo.get_all_positions(agent.trader_id)
+            
+            # For now, we'll use a simplified calculation
+            # In a real system, we'd need to get current market prices
+            total_position_value = sum(
+                pos.quantity * pos.avg_cost for pos in positions
+            )
+            
+            total_assets_value = balance + total_position_value
+            
+            # Count total trades executed
+            trades = await trade_repo.get_trader_trades(agent.trader_id, limit=10000)
+            total_trades = len(trades)
+            
+            # Calculate profit/loss (assuming initial balance was $100,000)
+            initial_balance = 10000000  # $100,000 in cents
+            profit_loss = balance - initial_balance
+            
+            entry = AgentLeaderboardEntry(
+                agent_id=agent.agent_id,
+                name=agent.name,
+                trader_id=agent.trader_id,
+                llm_model=agent.llm_model,
+                is_active=agent.is_active,
+                balance_in_cents=balance,
+                total_assets_value_in_cents=total_assets_value,
+                total_trades_executed=total_trades,
+                total_decisions=agent.total_decisions,
+                profit_loss_in_cents=profit_loss,
+                created_at=agent.created_at,
+                last_decision_at=agent.last_decision_at,
+            )
+            leaderboard_entries.append(entry)
+        
+        # Sort by total assets value by default
+        leaderboard_entries.sort(
+            key=lambda x: x.total_assets_value_in_cents, reverse=True
+        )
+        
+        return AgentLeaderboardResponse(
+            agents=leaderboard_entries,
+            total=len(leaderboard_entries),
+        )
+
+
+@router.get("/models/available", response_model=List[dict])
+async def get_available_models() -> List[dict]:
+    """
+    Get list of available LLM models for agents.
+    """
+    models = []
+    for model in LLMModel:
+        models.append(
+            {
+                "id": model.name,
+                "value": model.value,
+                "provider": model.get_provider().value,
+                "display_name": model.name.replace("_", " ").title(),
+            }
+        )
+
+    return models
+
+
 @router.get("/{agent_id}", response_model=Agent)
 async def get_agent(agent_id: UUID) -> Agent:
     """
@@ -100,9 +204,7 @@ async def get_agent(agent_id: UUID) -> Agent:
 
         agent = await agent_repo.get_agent_or_none(agent_id)
         if not agent:
-            raise HTTPException(
-                status_code=404, detail=f"Agent not found: {agent_id}"
-            )
+            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_id}")
 
         return agent
 
@@ -118,14 +220,13 @@ async def update_agent(agent_id: UUID, request: UpdateAgentRequest) -> Agent:
         agent = await agent_repo.update_agent_without_commit(
             agent_id=agent_id,
             temperature=request.temperature,
-            system_prompt=request.system_prompt,
+            personality_prompt=request.personality_prompt,
             is_active=request.is_active,
+            llm_model=request.llm_model,
         )
 
         if not agent:
-            raise HTTPException(
-                status_code=404, detail=f"Agent not found: {agent_id}"
-            )
+            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_id}")
 
         await session.commit()
         return agent
@@ -141,9 +242,7 @@ async def get_agent_stats(agent_id: UUID) -> AgentStats:
 
         stats = await agent_repo.get_agent_stats(agent_id)
         if not stats:
-            raise HTTPException(
-                status_code=404, detail=f"Agent not found: {agent_id}"
-            )
+            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_id}")
 
         return stats
 
@@ -163,9 +262,7 @@ async def get_agent_decisions(
         # Verify agent exists
         agent = await agent_repo.get_agent_or_none(agent_id)
         if not agent:
-            raise HTTPException(
-                status_code=404, detail=f"Agent not found: {agent_id}"
-            )
+            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_id}")
 
         decisions = await agent_repo.list_agent_decisions(
             agent_id=agent_id,
@@ -191,9 +288,7 @@ async def get_decision_detail(agent_id: UUID, decision_id: UUID) -> DecisionDeta
 
         decision = await agent_repo.get_decision(decision_id)
         if not decision:
-            raise HTTPException(
-                status_code=404, detail=f"Decision not found: {decision_id}"
-            )
+            raise HTTPException(status_code=404, detail=f"Decision not found: {decision_id}")
 
         if decision.agent_id != agent_id:
             raise HTTPException(
@@ -215,34 +310,45 @@ async def get_agent_memory(agent_id: UUID) -> AgentMemoryState:
         # Verify agent exists
         agent = await agent_repo.get_agent_or_none(agent_id)
         if not agent:
-            raise HTTPException(
-                status_code=404, detail=f"Agent not found: {agent_id}"
-            )
+            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_id}")
 
         memory_state = await agent_repo.get_agent_memory(agent_id)
         return memory_state
 
 
-@router.get("/models/available", response_model=List[dict])
-async def get_available_models() -> List[dict]:
+@router.post("/{agent_id}/toggle", response_model=Agent)
+async def toggle_agent(agent_id: UUID) -> Agent:
     """
-    Get list of available LLM models for agents.
+    Toggle agent's active status (pause/resume).
     """
-    models = []
-    for model in LLMModel:
-        provider = "Unknown"
-        if "gpt" in model.value.lower():
-            provider = "OpenAI"
-        elif "claude" in model.value.lower():
-            provider = "Anthropic"
-        elif "grok" in model.value.lower():
-            provider = "xAI"
+    async with async_session() as session:
+        agent_repo = AgentRepository(session)
 
-        models.append({
-            "id": model.name,
-            "value": model.value,
-            "provider": provider,
-            "display_name": model.name.replace("_", " ").title(),
-        })
+        # Get current agent
+        agent = await agent_repo.get_agent_or_none(agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_id}")
 
-    return models
+        # Toggle is_active status
+        new_status = not agent.is_active
+        updated_agent = await agent_repo.update_agent_without_commit(
+            agent_id=agent_id,
+            is_active=new_status,
+        )
+
+        await session.commit()
+
+        # Start or stop the agent in the manager
+        if new_status:
+            await agent_manager.start_agent(updated_agent)
+        else:
+            # The agent will stop itself when it detects is_active=False
+            pass
+
+        return updated_agent
+
+
+
+
+
+

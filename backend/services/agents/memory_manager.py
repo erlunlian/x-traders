@@ -3,50 +3,28 @@ Memory management for AI agents with compression
 """
 
 from typing import List, Optional
-from uuid import UUID
 
 import tiktoken
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
 
 from database import async_session
 from database.repositories import AgentRepository
-from enums import AgentMemoryType, AgentThoughtType, LLMModel
-from models.schemas.agents import AgentMemoryState, MemoryInfo
+from enums import AgentMemoryType, AgentThoughtType
+from models.schemas.agents import Agent, AgentMemoryState, MemoryInfo
 from models.schemas.model_config import ModelProvider, ModelRegistry
+from services.agents.utils import create_llm
 
 
 class MemoryManager:
     """Manages agent memory with compression at 80% threshold"""
 
-    def __init__(self, agent_id: UUID, llm_model: LLMModel):
-        self.agent_id = agent_id
-        self.llm_model = llm_model
-        self.model_config = ModelRegistry.get(llm_model)
+    def __init__(self, agent: Agent):
+        self.agent_id = agent.agent_id
+        self.llm_model = agent.llm_model
+        self.model_config = ModelRegistry.get(self.llm_model)
         self.compression_threshold = self.model_config.max_context_tokens
-        self.llm = self._create_llm()
+        self.llm = create_llm(self.llm_model, agent.temperature)
         self.encoder = self._get_encoder()
-
-    def _create_llm(self):
-        """Create LLM for memory compression"""
-        if self.model_config.provider == ModelProvider.OPENAI:
-            return ChatOpenAI(
-                model=self.llm_model.value,
-                temperature=0.3,  # Lower temp for compression
-            )
-        elif self.model_config.provider == ModelProvider.ANTHROPIC:
-            return ChatAnthropic(
-                model=self.llm_model.value,
-                temperature=0.3,
-            )
-        else:
-            # xAI/Grok
-            return ChatOpenAI(
-                model=self.llm_model.value,
-                temperature=0.3,
-                base_url="https://api.x.ai/v1",
-            )
 
     def _get_encoder(self):
         """Get appropriate tokenizer for the model"""

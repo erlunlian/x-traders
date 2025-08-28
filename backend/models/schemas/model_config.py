@@ -2,20 +2,11 @@
 Model configuration for LLM agents
 """
 
-from enum import Enum
 from typing import Dict, List, Optional, Sequence
 
 from pydantic import BaseModel, Field
 
-from enums import LLMModel
-
-
-class ModelProvider(str, Enum):
-    """LLM providers"""
-
-    OPENAI = "openai"
-    ANTHROPIC = "anthropic"
-    XAI = "xai"
+from enums import LLMModel, ModelProvider
 
 
 class ModelConfig(BaseModel):
@@ -25,8 +16,8 @@ class ModelConfig(BaseModel):
     provider: ModelProvider
     context_window: int
     compression_threshold: float = 0.8  # Compress at 80% of context
-    input_cost_per_1k: float = Field(description="Cost per 1000 input tokens in USD")
-    output_cost_per_1k: float = Field(description="Cost per 1000 output tokens in USD")
+    input_cost_per_1m: float = Field(description="Cost per 1 million input tokens in USD")
+    output_cost_per_1m: float = Field(description="Cost per 1 million output tokens in USD")
     supports_functions: bool = True
     supports_vision: bool = False
 
@@ -42,32 +33,63 @@ class ModelConfig(BaseModel):
 
     def calculate_cost(self, input_tokens: int, output_tokens: int) -> float:
         """Calculate cost in USD for token usage"""
-        input_cost = (input_tokens / 1000) * self.input_cost_per_1k
-        output_cost = (output_tokens / 1000) * self.output_cost_per_1k
+        input_cost = (input_tokens / 1000) * self.input_cost_per_1m
+        output_cost = (output_tokens / 1000) * self.output_cost_per_1m
         return round(input_cost + output_cost, 6)
 
 
 class ModelRegistry:
     """Registry of all available models with their configurations"""
 
-    # OpenAI Models
-    GPT_4O = ModelConfig(
-        model_id=LLMModel.GPT_4O,
-        provider=ModelProvider.OPENAI,
+    # Azure OpenAI Models
+    GPT_4_1_NANO_AZURE = ModelConfig(
+        model_id=LLMModel.GPT_4_1_NANO_AZURE,
+        provider=ModelProvider.AZURE_OPENAI,
         context_window=128000,
         compression_threshold=0.8,
-        input_cost_per_1k=2.50,
-        output_cost_per_1k=10.00,
+        input_cost_per_1m=0.05,
+        output_cost_per_1m=0.40,
         supports_vision=True,
     )
 
-    GPT_4O_MINI = ModelConfig(
-        model_id=LLMModel.GPT_4O_MINI,
+    GPT_4_O_MINI_AZURE = ModelConfig(
+        model_id=LLMModel.GPT_4_O_MINI_AZURE,
+        provider=ModelProvider.AZURE_OPENAI,
+        context_window=128000,
+        compression_threshold=0.8,
+        input_cost_per_1m=0.15,
+        output_cost_per_1m=0.60,
+        supports_vision=True,
+    )
+
+    GPT_5_NANO_AZURE = ModelConfig(
+        model_id=LLMModel.GPT_5_NANO_AZURE,
+        provider=ModelProvider.AZURE_OPENAI,
+        context_window=128000,
+        compression_threshold=0.8,
+        input_cost_per_1m=0.05,
+        output_cost_per_1m=0.40,
+        supports_vision=True,
+    )
+
+    # OpenAI Models
+    GPT_4_O = ModelConfig(
+        model_id=LLMModel.GPT_4_O,
         provider=ModelProvider.OPENAI,
         context_window=128000,
         compression_threshold=0.8,
-        input_cost_per_1k=0.15,
-        output_cost_per_1k=0.60,
+        input_cost_per_1m=2.50,
+        output_cost_per_1m=10.00,
+        supports_vision=True,
+    )
+
+    GPT_4_O_MINI = ModelConfig(
+        model_id=LLMModel.GPT_4_O_MINI,
+        provider=ModelProvider.OPENAI,
+        context_window=128000,
+        compression_threshold=0.8,
+        input_cost_per_1m=0.15,
+        output_cost_per_1m=0.60,
         supports_vision=True,
     )
 
@@ -76,8 +98,8 @@ class ModelRegistry:
         provider=ModelProvider.OPENAI,
         context_window=128000,
         compression_threshold=0.8,
-        input_cost_per_1k=1.25,
-        output_cost_per_1k=10.00,
+        input_cost_per_1m=1.25,
+        output_cost_per_1m=10.00,
         supports_vision=True,
     )
 
@@ -86,8 +108,8 @@ class ModelRegistry:
         provider=ModelProvider.OPENAI,
         context_window=128000,
         compression_threshold=0.8,
-        input_cost_per_1k=0.25,
-        output_cost_per_1k=2.00,
+        input_cost_per_1m=0.25,
+        output_cost_per_1m=2.00,
         supports_vision=True,
     )
 
@@ -96,29 +118,29 @@ class ModelRegistry:
         provider=ModelProvider.OPENAI,
         context_window=128000,
         compression_threshold=0.8,
-        input_cost_per_1k=0.05,
-        output_cost_per_1k=0.40,
+        input_cost_per_1m=0.05,
+        output_cost_per_1m=0.40,
         supports_vision=True,
     )
 
     # Anthropic Models
-    CLAUDE_35_SONNET = ModelConfig(
-        model_id=LLMModel.CLAUDE_35_SONNET,
+    CLAUDE_3_5_SONNET = ModelConfig(
+        model_id=LLMModel.CLAUDE_3_5_SONNET,
         provider=ModelProvider.ANTHROPIC,
         context_window=200000,
         compression_threshold=0.8,
-        input_cost_per_1k=3.00,
-        output_cost_per_1k=15.00,
+        input_cost_per_1m=3.00,
+        output_cost_per_1m=15.00,
         supports_vision=True,
     )
 
-    CLAUDE_35_HAIKU = ModelConfig(
-        model_id=LLMModel.CLAUDE_35_HAIKU,
+    CLAUDE_3_5_HAIKU = ModelConfig(
+        model_id=LLMModel.CLAUDE_3_5_HAIKU,
         provider=ModelProvider.ANTHROPIC,
         context_window=200000,
         compression_threshold=0.8,
-        input_cost_per_1k=0.80,
-        output_cost_per_1k=4.00,
+        input_cost_per_1m=0.80,
+        output_cost_per_1m=4.00,
         supports_vision=True,
     )
 
@@ -128,8 +150,8 @@ class ModelRegistry:
         provider=ModelProvider.XAI,
         context_window=128000,
         compression_threshold=0.8,
-        input_cost_per_1k=5.00,  # Estimated
-        output_cost_per_1k=15.00,  # Estimated
+        input_cost_per_1m=5.00,  # Estimated
+        output_cost_per_1m=15.00,  # Estimated
         supports_functions=True,
     )
 
@@ -138,22 +160,25 @@ class ModelRegistry:
         provider=ModelProvider.XAI,
         context_window=128000,
         compression_threshold=0.8,
-        input_cost_per_1k=5.00,  # Estimated
-        output_cost_per_1k=15.00,  # Estimated
+        input_cost_per_1m=5.00,  # Estimated
+        output_cost_per_1m=15.00,  # Estimated
         supports_functions=True,
     )
 
     # Registry mapping
     _registry: Dict[LLMModel, ModelConfig] = {
-        LLMModel.GPT_4O: GPT_4O,
-        LLMModel.GPT_4O_MINI: GPT_4O_MINI,
+        LLMModel.GPT_4_O: GPT_4_O,
+        LLMModel.GPT_4_O_MINI: GPT_4_O_MINI,
         LLMModel.GPT_5: GPT_5,
         LLMModel.GPT_5_MINI: GPT_5_MINI,
         LLMModel.GPT_5_NANO: GPT_5_NANO,
-        LLMModel.CLAUDE_35_SONNET: CLAUDE_35_SONNET,
-        LLMModel.CLAUDE_35_HAIKU: CLAUDE_35_HAIKU,
+        LLMModel.CLAUDE_3_5_SONNET: CLAUDE_3_5_SONNET,
+        LLMModel.CLAUDE_3_5_HAIKU: CLAUDE_3_5_HAIKU,
         LLMModel.GROK_BETA: GROK_BETA,
         LLMModel.GROK_2: GROK_2,
+        LLMModel.GPT_4_O_MINI_AZURE: GPT_4_O_MINI_AZURE,
+        LLMModel.GPT_4_1_NANO_AZURE: GPT_4_1_NANO_AZURE,
+        LLMModel.GPT_5_NANO_AZURE: GPT_5_NANO_AZURE,
     }
 
     @classmethod
@@ -179,7 +204,7 @@ class ModelRegistry:
         models: Sequence[ModelConfig] = List(cls._registry.values())
         if provider:
             models = [m for m in models if m.provider == provider]
-        return min(models, key=lambda m: m.input_cost_per_1k + m.output_cost_per_1k)
+        return min(models, key=lambda m: m.input_cost_per_1m + m.output_cost_per_1m)
 
     @classmethod
     def get_largest_context(cls, provider: Optional[ModelProvider] = None) -> ModelConfig:

@@ -13,9 +13,19 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, DollarSign, Calendar, Shield, Activity, TrendingUp, ShoppingCart, History, Bot, Brain, Zap, BarChart3 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Users, DollarSign, Calendar, Shield, Activity, TrendingUp, ShoppingCart, History, Bot, Brain, Zap, BarChart3, Pause, Play, Edit, Save, X, Copy, Check } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
-import type { Agent, AgentStats, AgentDecision } from '@/types/api';
+import type { Agent, AgentStats, AgentDecision, LLMModel } from '@/types/api';
 
 interface Position {
   ticker: string;
@@ -68,12 +78,27 @@ export function TraderDetailDrawer({ traderId, open, onOpenChange }: TraderDetai
   const [error, setError] = useState<string | null>(null);
   const [agentStats, setAgentStats] = useState<AgentStats | null>(null);
   const [agentDecisions, setAgentDecisions] = useState<AgentDecision[]>([]);
+  const [togglingAgent, setTogglingAgent] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editedAgent, setEditedAgent] = useState<Partial<Agent> | null>(null);
+  const [availableModels, setAvailableModels] = useState<LLMModel[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (traderId && open) {
       fetchTraderDetail();
+      fetchAvailableModels();
     }
   }, [traderId, open]);
+
+  useEffect(() => {
+    // Reset edit mode when drawer closes
+    if (!open) {
+      setEditMode(false);
+      setEditedAgent(null);
+    }
+  }, [open]);
 
   const fetchTraderDetail = async () => {
     if (!traderId) return;
@@ -122,6 +147,86 @@ export function TraderDetailDrawer({ traderId, open, onOpenChange }: TraderDetai
     });
   };
 
+  const fetchAvailableModels = async () => {
+    try {
+      const models = await apiClient.get<LLMModel[]>('/api/agents/models/available');
+      setAvailableModels(models);
+    } catch (err) {
+      console.error('Error fetching models:', err);
+    }
+  };
+
+  const toggleAgent = async () => {
+    if (!trader?.agent) return;
+    
+    try {
+      setTogglingAgent(true);
+      const updatedAgent = await apiClient.post<Agent>(`/api/agents/${trader.agent.agent_id}/toggle`);
+      
+      // Update the trader's agent in state
+      setTrader(prev => prev ? {
+        ...prev,
+        agent: updatedAgent
+      } : null);
+    } catch (err) {
+      console.error('Error toggling agent:', err);
+    } finally {
+      setTogglingAgent(false);
+    }
+  };
+
+  const startEdit = () => {
+    if (trader?.agent) {
+      setEditedAgent({
+        ...trader.agent
+      });
+      setEditMode(true);
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditMode(false);
+    setEditedAgent(null);
+  };
+
+  const saveAgentChanges = async () => {
+    if (!trader?.agent || !editedAgent) return;
+
+    try {
+      setSaving(true);
+      const updatedAgent = await apiClient.put<Agent>(
+        `/api/agents/${trader.agent.agent_id}`,
+        {
+          temperature: editedAgent.temperature,
+          llm_model: editedAgent.llm_model,
+        }
+      );
+
+      // Update the trader's agent in state
+      setTrader(prev => prev ? {
+        ...prev,
+        agent: updatedAgent
+      } : null);
+      
+      setEditMode(false);
+      setEditedAgent(null);
+    } catch (err) {
+      console.error('Error saving agent:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const copyToClipboard = async (text: string, idType: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(idType);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
@@ -136,24 +241,27 @@ export function TraderDetailDrawer({ traderId, open, onOpenChange }: TraderDetai
             )}
           </SheetTitle>
           <SheetDescription>
-            {trader && (
-              <div className="space-y-2 mt-2">
-                <div className="flex items-center gap-2">
-                  <Badge variant={trader.is_active ? "default" : "secondary"}>
-                    <Activity className="mr-1 h-3 w-3" />
-                    {trader.is_active ? 'Active' : 'Inactive'}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">ID:</span>
-                  <code className="text-xs bg-muted px-2 py-1 rounded font-mono">
-                    {trader.trader_id}
-                  </code>
-                </div>
-              </div>
-            )}
+            View and manage trader information
           </SheetDescription>
         </SheetHeader>
+        
+        {/* Trader info moved outside SheetDescription */}
+        {trader && (
+          <div className="space-y-2 mt-4">
+            <div className="flex items-center gap-2">
+              <Badge variant={trader.is_active ? "default" : "secondary"}>
+                <Activity className="mr-1 h-3 w-3" />
+                {trader.is_active ? 'Active' : 'Inactive'}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">ID:</span>
+              <code className="text-xs bg-muted px-2 py-1 rounded font-mono">
+                {trader.trader_id}
+              </code>
+            </div>
+          </div>
+        )}
 
         {loading && (
           <div className="mt-6 space-y-4">
@@ -178,35 +286,176 @@ export function TraderDetailDrawer({ traderId, open, onOpenChange }: TraderDetai
             {trader.agent && (
               <Card className="mb-6 border-primary/20">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Bot className="h-5 w-5 text-primary" />
-                    AI Agent: {trader.agent.name}
-                  </CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Bot className="h-5 w-5 text-primary" />
+                      AI Agent: {trader.agent.name}
+                    </CardTitle>
+                    <div className="flex gap-2">
+                      {!editMode ? (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={startEdit}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={trader.agent.is_active ? "destructive" : "default"}
+                            onClick={toggleAgent}
+                            disabled={togglingAgent}
+                          >
+                            {togglingAgent ? (
+                              "..."
+                            ) : trader.agent.is_active ? (
+                              <>
+                                <Pause className="mr-2 h-4 w-4" />
+                                Pause
+                              </>
+                            ) : (
+                              <>
+                                <Play className="mr-2 h-4 w-4" />
+                                Resume
+                              </>
+                            )}
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={cancelEdit}
+                            disabled={saving}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={saveAgentChanges}
+                            disabled={saving}
+                          >
+                            {saving ? (
+                              "..."
+                            ) : (
+                              <>
+                                <Save className="mr-2 h-4 w-4" />
+                                Save
+                              </>
+                            )}
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
+                    {/* Agent ID with copy button */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Agent ID</span>
+                      <div className="flex items-center gap-2">
+                        <code className="text-xs bg-muted px-2 py-1 rounded font-mono">
+                          {trader.agent.agent_id.slice(0, 8)}...
+                        </code>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0"
+                          onClick={() => copyToClipboard(trader.agent?.agent_id || '', 'agent')}
+                        >
+                          {copiedId === 'agent' ? (
+                            <Check className="h-3 w-3 text-green-600" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    {/* Trader ID with copy button */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Trader ID</span>
+                      <div className="flex items-center gap-2">
+                        <code className="text-xs bg-muted px-2 py-1 rounded font-mono">
+                          {trader.trader_id.slice(0, 8)}...
+                        </code>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0"
+                          onClick={() => copyToClipboard(trader.trader_id, 'trader')}
+                        >
+                          {copiedId === 'trader' ? (
+                            <Check className="h-3 w-3 text-green-600" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Model field - editable in edit mode */}
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Model</span>
-                      <Badge variant="outline">{trader.agent.llm_model}</Badge>
+                      {!editMode ? (
+                        <Badge variant="outline">{trader.agent.llm_model}</Badge>
+                      ) : (
+                        <Select
+                          value={editedAgent?.llm_model}
+                          onValueChange={(value) => setEditedAgent(prev => prev ? {...prev, llm_model: value} : null)}
+                        >
+                          <SelectTrigger className="w-48 h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableModels.map((model) => (
+                              <SelectItem key={model.id} value={model.value}>
+                                {model.display_name} ({model.provider})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
+                    
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Status</span>
                       <Badge variant={trader.agent.is_active ? "default" : "secondary"}>
                         {trader.agent.is_active ? 'Active' : 'Inactive'}
                       </Badge>
                     </div>
+                    
+                    {/* Temperature field - editable in edit mode */}
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Temperature</span>
-                      <span className="font-mono text-sm">{trader.agent.temperature}</span>
+                      {!editMode ? (
+                        <span className="font-mono text-sm">{trader.agent.temperature}</span>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min="0"
+                            max="1"
+                            step="0.1"
+                            value={editedAgent?.temperature || 0}
+                            onChange={(e) => setEditedAgent(prev => prev ? {...prev, temperature: parseFloat(e.target.value)} : null)}
+                            className="w-20 h-8"
+                          />
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Total Decisions</span>
-                      <span className="font-semibold">{trader.agent.total_decisions}</span>
+                      <span className="font-semibold">{trader.agent?.total_decisions}</span>
                     </div>
-                    {trader.agent.last_decision_at && (
+                    {trader.agent?.last_decision_at && (
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-muted-foreground">Last Decision</span>
-                        <span className="text-sm">{formatDate(trader.agent.last_decision_at)}</span>
+                        <span className="text-sm">{formatDate(trader.agent?.last_decision_at || '')}</span>
                       </div>
                     )}
                   </div>
@@ -232,11 +481,11 @@ export function TraderDetailDrawer({ traderId, open, onOpenChange }: TraderDetai
                     </div>
                   )}
                   
-                  {/* System Prompt Preview */}
+                  {/* Personality Preview */}
                   <div className="mt-4 pt-4 border-t">
-                    <div className="text-sm font-semibold mb-2">System Prompt</div>
+                    <div className="text-sm font-semibold mb-2">Personality</div>
                     <div className="text-xs text-muted-foreground bg-muted p-2 rounded max-h-24 overflow-y-auto">
-                      {trader.agent.system_prompt}
+                      {trader.agent?.personality_prompt}
                     </div>
                   </div>
                 </CardContent>

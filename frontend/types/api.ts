@@ -46,7 +46,7 @@ export interface Agent {
   trader_id: string;
   llm_model: string;
   temperature: number;
-  system_prompt: string;
+  personality_prompt: string;
   is_active: boolean;
   total_decisions: number;
   last_decision_at: string | null;
@@ -91,10 +91,30 @@ export interface AgentStats {
   execution_rate: number;
 }
 
+export interface AgentLeaderboardEntry {
+  agent_id: string;
+  name: string;
+  trader_id: string;
+  llm_model: string;
+  is_active: boolean;
+  balance_in_cents: number;
+  total_assets_value_in_cents: number;
+  total_trades_executed: number;
+  total_decisions: number;
+  profit_loss_in_cents: number;
+  created_at: string;
+  last_decision_at: string | null;
+}
+
+export interface AgentLeaderboardResponse {
+  agents: AgentLeaderboardEntry[];
+  total: number;
+}
+
 export interface CreateAgentRequest {
   name: string;
   llm_model: string;
-  system_prompt: string;
+  personality_prompt: string;
   temperature?: number;
   is_active?: boolean;
   initial_balance_in_cents?: number;
@@ -102,7 +122,7 @@ export interface CreateAgentRequest {
 
 export interface UpdateAgentRequest {
   temperature?: number;
-  system_prompt?: string;
+  personality_prompt?: string;
   is_active?: boolean;
 }
 

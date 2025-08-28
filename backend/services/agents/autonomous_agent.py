@@ -8,9 +8,13 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import AzureChatOpenAI, ChatOpenAI
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, Field
 
@@ -19,42 +23,28 @@ from database.repositories import AgentRepository, XDataRepository
 from enums import AgentAction, AgentDecisionTrigger, AgentThoughtType
 from models.schemas.agents import Agent, AgentThought
 from models.schemas.tweet_feed import TweetForAgent
-from services.agents.agent_tools import get_trading_tools, get_x_data_tools
+from services.agents.agent_tools import (
+    get_trading_tools,
+    get_utility_tools,
+    get_x_data_tools,
+)
 from services.agents.memory_manager import MemoryManager
+from services.agents.system_prompt import build_system_prompt
+from services.agents.utils import create_llm
 
-
-# Structured output models for LLM responses
-class ToolCall(BaseModel):
-    """Represents a tool call from the agent"""
-
-    tool: str
-    arguments: Dict[str, Any] = Field(default_factory=dict)
-
-
-class ThinkingResponse(BaseModel):
-    """Agent's response from the thinking node"""
-
-    action: str = Field(description="One of: execute_tools, rest, continue")
-    reasoning: str = Field(description="Current thinking process")
-    tool_calls: List[ToolCall] = Field(
-        default_factory=list, description="Tools to execute if action is execute_tools"
-    )
-    rest_minutes: int = Field(
-        default=5, description="Minutes to rest if action is rest"
-    )
+# Note: We no longer need ThinkingResponse or ToolCall classes
+# OpenAI's native tool calling handles this for us
 
 
 class AgentState(BaseModel):
     """State for the agent graph"""
 
     agent_id: UUID
-    current_thought: Optional[str] = None
-    thoughts: List[AgentThought] = Field(default_factory=list)
+    messages: List[BaseMessage] = Field(default_factory=list)
+    thoughts: List[AgentThought] = Field(default_factory=list)  # For database storage
     pending_tweets: List[TweetForAgent] = Field(default_factory=list)
+    pending_tool_calls: List = Field(default_factory=list)  # Tool calls from LLM
     memory_context: str = ""
-    tool_results: Dict[str, Any] = Field(default_factory=dict)
-    should_rest: bool = False
-    rest_duration_minutes: int = 5
     cycle_count: int = 0
     is_active: bool = True
     error_context: str = ""
@@ -66,52 +56,28 @@ class AutonomousAgent:
 
     def __init__(self, agent: Agent):
         self.agent = agent
-        self.llm = self._create_llm()
+        self.llm = create_llm(self.agent.llm_model, self.agent.temperature)
         self.memory_manager = MemoryManager(
-            agent_id=agent.agent_id,
-            llm_model=agent.llm_model,
+            agent=agent,
         )
         self.running = True
-        self.tools = self._create_tool_registry()
+        self.tools_list = self._get_all_tools()  # List of StructuredTools for LLM
+        self.tools_map = self._create_tool_registry()  # Map for execution
         self.graph = None  # Will hold the compiled graph
 
-    def _create_llm(self):
-        """Create the appropriate LLM based on configuration"""
-        model_name = self.agent.llm_model.value
-
-        if model_name.startswith("gpt"):
-            return AzureChatOpenAI(
-                model=model_name,
-                temperature=float(self.agent.temperature),
-            )
-        elif model_name.startswith("claude"):
-            return ChatAnthropic(
-                model=model_name,
-                temperature=float(self.agent.temperature),
-            )
-        elif model_name.startswith("grok"):
-            # Grok uses OpenAI-compatible API
-            return ChatOpenAI(
-                model=model_name,
-                temperature=float(self.agent.temperature),
-                base_url="https://api.x.ai/v1",  # X.AI's API endpoint
-            )
-        else:
-            raise ValueError(f"Unknown model: {model_name}")
-
-    def _create_tool_registry(self) -> Dict[str, Any]:
-        """Create registry of available tools from agent_tools.py"""
-        # Get all tools from agent_tools
+    def _get_all_tools(self) -> List:
+        """Get all available tools as StructuredTool objects"""
         trading_tools = get_trading_tools()
         x_data_tools = get_x_data_tools()
+        utility_tools = get_utility_tools()
 
-        # Build a dictionary mapping tool names to functions
+        return trading_tools + x_data_tools + utility_tools
+
+    def _create_tool_registry(self) -> Dict[str, Any]:
+        """Create registry mapping tool names to coroutines"""
         registry = {}
-
-        for tool in trading_tools + x_data_tools:
-            # Extract the async function from the StructuredTool
+        for tool in self.tools_list:
             registry[tool.name] = tool.coroutine
-
         return registry
 
     def _create_graph(self) -> StateGraph:
@@ -122,7 +88,6 @@ class AutonomousAgent:
         graph.add_node("check_active", self.check_active_node)
         graph.add_node("think", self.think_node)
         graph.add_node("execute_tools", self.execute_tools_node)
-        graph.add_node("rest", self.rest_node)
         graph.add_node("save_thoughts", self.save_thoughts_node)
 
         # Set entry point
@@ -143,13 +108,11 @@ class AutonomousAgent:
             self.route_from_think,
             {
                 "execute": "execute_tools",
-                "rest": "rest",
                 "save": "save_thoughts",
             },
         )
 
         graph.add_edge("execute_tools", "save_thoughts")
-        graph.add_edge("rest", "save_thoughts")
         graph.add_edge("save_thoughts", "check_active")
 
         return graph
@@ -186,7 +149,7 @@ class AutonomousAgent:
         return state
 
     async def think_node(self, state: AgentState) -> AgentState:
-        """Main thinking/decision node"""
+        """Main thinking/decision node using native tool calling"""
         # Get memory context
         state.memory_context = (
             await self.memory_manager.get_formatted_memory_for_prompt()
@@ -208,186 +171,169 @@ Cycle: {state.cycle_count}
         if state.error_context:
             context += f"\n\nPrevious errors:\n{state.error_context}"
 
-        # Get tool descriptions
-        trading_tools = get_trading_tools()
-        x_data_tools = get_x_data_tools()
+        # Bind tools to the LLM for native tool calling
+        llm_with_tools = self.llm.bind_tools(self.tools_list)
 
-        tools_desc = "Available tools:\n"
-        for tool in trading_tools + x_data_tools:
-            tools_desc += f"- {tool.name}: {tool.description}\n"
+        # Build messages - use existing messages or start fresh
+        if not state.messages:
+            # Build complete system prompt from personality
+            system_prompt = build_system_prompt(self.agent.personality_prompt)
+            state.messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=context),
+            ]
+        else:
+            # Add new context as a message
+            state.messages.append(HumanMessage(content=context))
 
-        # Ask LLM what to do using structured output
-        llm_with_structure = self.llm.with_structured_output(ThinkingResponse)
+        # Get response with potential tool calls
+        response = await llm_with_tools.ainvoke(state.messages)
 
-        messages = [
-            SystemMessage(content=self.agent.system_prompt),
-            HumanMessage(
-                content=f"""
-{context}
+        # Store the AI message in state
+        state.messages.append(response)
 
-{tools_desc}
+        # Extract tool calls if any
+        if hasattr(response, "tool_calls") and response.tool_calls:
+            state.pending_tool_calls = response.tool_calls
+        else:
+            state.pending_tool_calls = []
 
-What would you like to do? You can:
-1. Call one or more tools (action: "execute_tools")
-2. Rest for a while (action: "rest")
-3. Just think and continue (action: "continue")
-
-Decide your next action.
-"""
-            ),
-        ]
-
-        response = await llm_with_structure.ainvoke(messages)
-
-        # Store the response
-        state.current_thought = response.reasoning
-
-        if response.action == "rest":
-            state.should_rest = True
-            state.rest_duration_minutes = response.rest_minutes
-        elif response.action == "execute_tools":
-            state.tool_results = {"pending_calls": response.tool_calls}
-
-        # Log thought
-        thought = AgentThought(
-            agent_id=self.agent.agent_id,
-            step_number=len(state.thoughts),
-            thought_type=AgentThoughtType.ANALYZING,
-            content=state.current_thought,
-        )
-        state.thoughts.append(thought)
+        # Store reasoning if present
+        if response.content:
+            # Create thought for database storage
+            thought = AgentThought(
+                agent_id=self.agent.agent_id,
+                step_number=state.cycle_count,
+                thought_type=AgentThoughtType.THINKING,
+                content=response.content[:2000],  # Limit to field size
+            )
+            state.thoughts.append(thought)
 
         return state
 
     async def execute_tools_node(self, state: AgentState) -> AgentState:
-        """Execute tool calls"""
-        pending_calls = state.tool_results.get("pending_calls", [])
-        results = []
-        errors = []
+        """Execute native OpenAI tool calls and add results as ToolMessages"""
+        if not state.pending_tool_calls:
+            return state
 
-        for call in pending_calls:
-            tool_name = call.tool
-            arguments = call.arguments
+        for tool_call in state.pending_tool_calls:
+            tool_name = tool_call["name"]
+            tool_id = tool_call["id"]
+            arguments = tool_call["args"]
 
             # Add trader_id for tools that need it
             if tool_name in ["buy_stock", "sell_stock", "check_portfolio"]:
                 arguments["trader_id"] = str(self.agent.trader_id)
 
-            if tool_name in self.tools:
-                try:
-                    result = await self.tools[tool_name](**arguments)
+            try:
+                if tool_name not in self.tools_map:
+                    raise ValueError(f"Unknown tool: {tool_name}")
 
-                    # Convert result to dict if needed
-                    if hasattr(result, "model_dump"):
-                        result = result.model_dump()
-                    elif hasattr(result, "dict"):
-                        result = result.dict()
+                # Execute the tool
+                result = await self.tools_map[tool_name](**arguments)
 
-                    results.append({"tool": tool_name, "result": result})
+                # Convert result to dict/string for ToolMessage
+                if hasattr(result, "model_dump"):
+                    result_str = json.dumps(result.model_dump())
+                elif hasattr(result, "dict"):
+                    result_str = json.dumps(result.dict())
+                elif isinstance(result, dict):
+                    result_str = json.dumps(result)
+                else:
+                    result_str = str(result)
 
-                    # Record trading decisions with repository
-                    if tool_name in ["buy_stock", "sell_stock"]:
-                        action = (
-                            AgentAction.BUY
-                            if tool_name == "buy_stock"
-                            else AgentAction.SELL
+                # Add tool result as ToolMessage
+                tool_message = ToolMessage(
+                    content=result_str,
+                    tool_call_id=tool_id,
+                )
+                state.messages.append(tool_message)
+
+                # Record trading decisions with repository
+                if tool_name in ["buy_stock", "sell_stock"]:
+                    # Parse result to check if successful
+                    result_dict = (
+                        json.loads(result_str)
+                        if isinstance(result_str, str)
+                        else result_str
+                    )
+                    action = (
+                        AgentAction.BUY
+                        if tool_name == "buy_stock"
+                        else AgentAction.SELL
+                    )
+                    success = (
+                        result_dict.get("success", False)
+                        if isinstance(result_dict, dict)
+                        else False
+                    )
+                    order_id = (
+                        result_dict.get("order_id")
+                        if success and isinstance(result_dict, dict)
+                        else None
+                    )
+
+                    # Determine trigger type
+                    trigger_type = (
+                        AgentDecisionTrigger.TWEET
+                        if state.pending_tweets
+                        else AgentDecisionTrigger.AUTONOMOUS
+                    )
+                    trigger_tweet_id = (
+                        state.pending_tweets[0].tweet_id
+                        if state.pending_tweets
+                        else None
+                    )
+
+                    # Extract reasoning from recent messages
+                    reasoning = ""
+                    for msg in reversed(state.messages):
+                        if isinstance(msg, AIMessage) and msg.content:
+                            reasoning = msg.content[:500]
+                            break
+
+                    async with async_session() as session:
+                        repo = AgentRepository(session)
+                        decision = await repo.record_decision_without_commit(
+                            agent_id=self.agent.agent_id,
+                            trigger_type=trigger_type,
+                            action=action,
+                            thoughts=[
+                                (t.thought_type, t.content) for t in state.thoughts[-5:]
+                            ],
+                            ticker=arguments.get("ticker"),
+                            quantity=arguments.get("quantity"),
+                            reasoning=reasoning,
+                            trigger_tweet_id=trigger_tweet_id,
+                            order_id=UUID(order_id) if order_id else None,
+                            executed=success,
                         )
+                        await session.commit()
+                        state.last_decision_id = decision.decision_id
 
-                        # Determine if trade was successful
-                        success = result.get("success", False)
-                        order_id = result.get("order_id") if success else None
+            except Exception as e:
+                # Create error message as ToolMessage
+                error_message = ToolMessage(
+                    content=f"Error executing {tool_name}: {str(e)}",
+                    tool_call_id=tool_id,
+                )
+                state.messages.append(error_message)
 
-                        # Determine trigger type (from tweets or autonomous)
-                        trigger_type = (
-                            AgentDecisionTrigger.TWEET
-                            if state.pending_tweets
-                            else AgentDecisionTrigger.AUTONOMOUS
-                        )
+                # Log error as thought
+                thought = AgentThought(
+                    agent_id=self.agent.agent_id,
+                    step_number=state.cycle_count,
+                    thought_type=AgentThoughtType.DECIDING,
+                    content=f"Error with {tool_name}: {str(e)[:500]}",
+                )
+                state.thoughts.append(thought)
 
-                        # Get first tweet ID if triggered by tweets
-                        trigger_tweet_id = (
-                            state.pending_tweets[0].tweet_id
-                            if state.pending_tweets
-                            and trigger_type == AgentDecisionTrigger.TWEET
-                            else None
-                        )
-
-                        async with async_session() as session:
-                            repo = AgentRepository(session)
-                            decision = await repo.record_decision_without_commit(
-                                agent_id=self.agent.agent_id,
-                                trigger_type=trigger_type,
-                                action=action,
-                                thoughts=[
-                                    (t.thought_type, t.content)
-                                    for t in state.thoughts[-5:]
-                                ],  # Last 5 thoughts
-                                ticker=arguments.get("ticker"),
-                                quantity=arguments.get("quantity"),
-                                reasoning=state.current_thought,
-                                trigger_tweet_id=trigger_tweet_id,
-                                order_id=UUID(order_id) if order_id else None,
-                                executed=success,
-                            )
-                            await session.commit()
-
-                            # Store decision ID for reference
-                            state.last_decision_id = decision.decision_id
-
-                except Exception as e:
-                    errors.append(f"{tool_name}: {str(e)}")
-                    results.append({"tool": tool_name, "error": str(e)})
-            else:
-                errors.append(f"Unknown tool: {tool_name}")
-
-        # Store results and errors
-        state.tool_results = {"results": results}
-        state.error_context = "\n".join(errors) if errors else ""
-
-        # Log execution results as thoughts
-        for result in results:
-            thought = AgentThought(
-                agent_id=self.agent.agent_id,
-                step_number=len(state.thoughts),
-                thought_type=AgentThoughtType.DECIDING,
-                content=f"{result['tool']}: {json.dumps(result.get('result', result.get('error', {})))[:500]}",
-            )
-            state.thoughts.append(thought)
-
-        # Clear pending tweets after processing
-        state.pending_tweets = []
+        # Clear pending tool calls after processing
+        state.pending_tool_calls = []
 
         return state
 
-    async def rest_node(self, state: AgentState) -> AgentState:
-        """Rest for a specified duration"""
-        duration = state.rest_duration_minutes
-        print(f"Agent {self.agent.name} resting for {duration} minutes...")
-
-        thought = AgentThought(
-            agent_id=self.agent.agent_id,
-            step_number=len(state.thoughts),
-            thought_type=AgentThoughtType.REFLECTING,
-            content=f"Taking a break for {duration} minutes",
-        )
-        state.thoughts.append(thought)
-
-        # Record REST decision
-        async with async_session() as session:
-            repo = AgentRepository(session)
-            await repo.record_decision_without_commit(
-                agent_id=self.agent.agent_id,
-                trigger_type=AgentDecisionTrigger.AUTONOMOUS,
-                action=AgentAction.REST,
-                thoughts=[(t.thought_type, t.content) for t in state.thoughts[-3:]],
-                reasoning=f"Decided to rest for {duration} minutes",
-            )
-            await session.commit()
-
-        await asyncio.sleep(duration * 60)
-
-        state.should_rest = False
-        return state
+    # Note: rest_node removed - rest is now handled as a tool
 
     async def save_thoughts_node(self, state: AgentState) -> AgentState:
         """Save thoughts to database using repository and compress memory if needed"""
@@ -428,10 +374,8 @@ Decide your next action.
         return "continue"
 
     def route_from_think(self, state: AgentState) -> str:
-        """Route from think node"""
-        if state.should_rest:
-            return "rest"
-        elif state.tool_results.get("pending_calls"):
+        """Route from think node based on whether there are tool calls"""
+        if state.pending_tool_calls:
             return "execute"
         else:
             return "save"

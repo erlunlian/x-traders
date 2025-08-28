@@ -37,7 +37,7 @@ export function CreateAgentDialog({ open, onOpenChange, onAgentCreated }: Create
     name: '',
     llm_model: '',
     temperature: 0.7,
-    system_prompt: '',
+    personality_prompt: '',
     is_active: true,
     initial_balance_in_cents: 10000000, // Default $100,000
   });
@@ -62,7 +62,7 @@ export function CreateAgentDialog({ open, onOpenChange, onAgentCreated }: Create
     e.preventDefault();
     setError(null);
 
-    if (!formData.name || !formData.llm_model || !formData.system_prompt) {
+    if (!formData.name || !formData.llm_model || !formData.personality_prompt) {
       setError('Please fill in all required fields');
       return;
     }
@@ -76,7 +76,7 @@ export function CreateAgentDialog({ open, onOpenChange, onAgentCreated }: Create
         name: '',
         llm_model: '',
         temperature: 0.7,
-        system_prompt: '',
+        personality_prompt: '',
         is_active: true,
         initial_balance_in_cents: 10000000,
       });
@@ -191,17 +191,17 @@ export function CreateAgentDialog({ open, onOpenChange, onAgentCreated }: Create
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="prompt">System Prompt</Label>
+              <Label htmlFor="prompt">Personality</Label>
               <Textarea
                 id="prompt"
-                placeholder="You are a trading agent that analyzes X (Twitter) posts to make informed trading decisions..."
-                value={formData.system_prompt}
-                onChange={(e) => setFormData({ ...formData, system_prompt: e.target.value })}
+                placeholder="A cautious trader who values stability over risky gains, prefers established accounts with strong fundamentals..."
+                value={formData.personality_prompt}
+                onChange={(e) => setFormData({ ...formData, personality_prompt: e.target.value })}
                 rows={6}
                 disabled={loading}
               />
               <p className="text-xs text-muted-foreground">
-                Define the agent's personality, trading strategy, and decision-making criteria.
+                Define the agent's unique personality and trading style. The system will provide standard trading instructions.
               </p>
             </div>
 

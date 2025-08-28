@@ -80,7 +80,7 @@ class AgentRepository:
             trader_id=agent.trader_id,
             llm_model=agent.llm_model,
             temperature=agent.temperature,
-            system_prompt=agent.system_prompt,
+            personality_prompt=agent.personality_prompt,
             is_active=agent.is_active,
             total_decisions=agent.total_decisions,
             last_decision_at=agent.last_decision_at,
@@ -93,7 +93,7 @@ class AgentRepository:
         name: str,
         trader_id: UUID,
         llm_model: LLMModel,
-        system_prompt: str,
+        personality_prompt: str,
         temperature: float = 0.7,
         is_active: bool = True,
     ) -> Agent:
@@ -102,7 +102,7 @@ class AgentRepository:
             name=name,
             trader_id=trader_id,
             llm_model=llm_model,
-            system_prompt=system_prompt,
+            personality_prompt=personality_prompt,
             temperature=temperature,
             is_active=is_active,
         )
@@ -137,8 +137,9 @@ class AgentRepository:
         self,
         agent_id: UUID,
         temperature: Optional[float] = None,
-        system_prompt: Optional[str] = None,
+        personality_prompt: Optional[str] = None,
         is_active: Optional[bool] = None,
+        llm_model: Optional["LLMModel"] = None,
     ) -> Optional[Agent]:
         """Update agent configuration"""
         agent_db = await self._get_db_agent_or_none(agent_id)
@@ -148,10 +149,12 @@ class AgentRepository:
 
         if temperature is not None:
             agent_db.temperature = temperature
-        if system_prompt is not None:
-            agent_db.system_prompt = system_prompt
+        if personality_prompt is not None:
+            agent_db.personality_prompt = personality_prompt
         if is_active is not None:
             agent_db.is_active = is_active
+        if llm_model is not None:
+            agent_db.llm_model = llm_model
 
         await self.session.flush()
 
