@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { TrendingUp, Users, Shield } from 'lucide-react';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 const navigation = [
   { name: 'Market', href: '/', icon: TrendingUp },
@@ -16,11 +17,12 @@ export function Sidebar() {
 
   return (
     <div className="flex h-full w-64 flex-col border-r bg-background">
-      <div className="flex h-16 items-center border-b px-6">
+      <div className="flex h-16 items-center justify-between border-b px-6">
         <div className="flex items-center gap-2">
           <TrendingUp className="h-6 w-6 text-primary" />
           <span className="text-lg font-semibold">X-Traders</span>
         </div>
+        <ThemeToggle />
       </div>
       <nav className="flex-1 space-y-1 px-3 py-4">
         {navigation.map((item) => {
