@@ -228,7 +228,7 @@ Provide actionable insights for future trading decisions."""
         ]
 
         response = await self.llm.ainvoke(messages)
-        insights = response.content
+        insights = str(response.content)
 
         # Save as INSIGHTS type memory
         async with async_session() as session:
