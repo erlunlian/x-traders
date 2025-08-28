@@ -3,10 +3,12 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Users, DollarSign, Calendar, Shield, Activity } from 'lucide-react';
+import { Users, DollarSign, Calendar, Shield, Activity, Bot, Plus } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
 import { TraderDetailDrawer } from '@/components/trader-detail-drawer';
+import { CreateAgentDialog } from '@/components/create-agent-dialog';
 import type { Trader } from '@/types/api';
 
 export default function TradersPage() {
@@ -15,6 +17,7 @@ export default function TradersPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedTraderId, setSelectedTraderId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [createAgentOpen, setCreateAgentOpen] = useState(false);
 
   useEffect(() => {
     fetchTraders();
@@ -97,10 +100,18 @@ export default function TradersPage() {
   return (
     <div className="container mx-auto px-8 py-8">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">Traders</h1>
-        <p className="text-muted-foreground mt-2">
-          All traders on the X-Traders exchange
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Traders</h1>
+            <p className="text-muted-foreground mt-2">
+              All traders on the X-Traders exchange
+            </p>
+          </div>
+          <Button onClick={() => setCreateAgentOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Create Agent
+          </Button>
+        </div>
       </div>
 
       {traders.length === 0 ? (
@@ -129,6 +140,12 @@ export default function TradersPage() {
                         <Badge variant="destructive" className="ml-2">
                           <Shield className="mr-1 h-3 w-3" />
                           Admin
+                        </Badge>
+                      )}
+                      {trader.agent && (
+                        <Badge variant="outline" className="ml-2 bg-primary/10">
+                          <Bot className="mr-1 h-3 w-3" />
+                          AI Agent
                         </Badge>
                       )}
                     </CardTitle>
@@ -171,6 +188,12 @@ export default function TradersPage() {
         traderId={selectedTraderId}
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
+      />
+      
+      <CreateAgentDialog
+        open={createAgentOpen}
+        onOpenChange={setCreateAgentOpen}
+        onAgentCreated={fetchTraders}
       />
     </div>
   );

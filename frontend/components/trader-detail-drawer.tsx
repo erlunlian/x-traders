@@ -12,8 +12,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Users, DollarSign, Calendar, Shield, Activity, TrendingUp, ShoppingCart, History } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Users, DollarSign, Calendar, Shield, Activity, TrendingUp, ShoppingCart, History, Bot, Brain, Zap, BarChart3 } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
+import type { Agent, AgentStats, AgentDecision } from '@/types/api';
 
 interface Position {
   ticker: string;
@@ -51,6 +53,7 @@ interface TraderDetail {
   positions: Position[];
   unfilled_orders: Order[];
   recent_trades: Trade[];
+  agent?: Agent;
 }
 
 interface TraderDetailDrawerProps {
@@ -63,6 +66,8 @@ export function TraderDetailDrawer({ traderId, open, onOpenChange }: TraderDetai
   const [trader, setTrader] = useState<TraderDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [agentStats, setAgentStats] = useState<AgentStats | null>(null);
+  const [agentDecisions, setAgentDecisions] = useState<AgentDecision[]>([]);
 
   useEffect(() => {
     if (traderId && open) {
@@ -78,6 +83,20 @@ export function TraderDetailDrawer({ traderId, open, onOpenChange }: TraderDetai
       setError(null);
       const data = await apiClient.get<TraderDetail>(`/api/traders/${traderId}`);
       setTrader(data);
+      
+      // If trader has an agent, fetch agent stats and decisions
+      if (data.agent) {
+        try {
+          const [stats, decisions] = await Promise.all([
+            apiClient.get<AgentStats>(`/api/agents/${data.agent.agent_id}/stats`),
+            apiClient.get<{ decisions: AgentDecision[] }>(`/api/agents/${data.agent.agent_id}/decisions?limit=10`)
+          ]);
+          setAgentStats(stats);
+          setAgentDecisions(decisions.decisions);
+        } catch (err) {
+          console.error('Error fetching agent data:', err);
+        }
+      }
     } catch (err) {
       setError('Failed to load trader details');
       console.error('Error fetching trader:', err);
@@ -154,28 +173,117 @@ export function TraderDetailDrawer({ traderId, open, onOpenChange }: TraderDetai
         )}
 
         {trader && !loading && (
-          <div className="mt-6 space-y-6">
-            {/* Balance Card */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <DollarSign className="h-5 w-5" />
-                  Cash Balance
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600">
-                  {formatCurrency(trader.balance_in_cents)}
-                </div>
-                <div className="text-sm text-muted-foreground mt-1">
-                  <Calendar className="inline mr-1 h-3 w-3" />
-                  Created {formatDate(trader.created_at)}
-                </div>
-              </CardContent>
-            </Card>
+          <div className="mt-6">
+            {/* Agent Section for traders with agents */}
+            {trader.agent && (
+              <Card className="mb-6 border-primary/20">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Bot className="h-5 w-5 text-primary" />
+                    AI Agent: {trader.agent.name}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Model</span>
+                      <Badge variant="outline">{trader.agent.llm_model}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Status</span>
+                      <Badge variant={trader.agent.is_active ? "default" : "secondary"}>
+                        {trader.agent.is_active ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Temperature</span>
+                      <span className="font-mono text-sm">{trader.agent.temperature}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Total Decisions</span>
+                      <span className="font-semibold">{trader.agent.total_decisions}</span>
+                    </div>
+                    {trader.agent.last_decision_at && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Last Decision</span>
+                        <span className="text-sm">{formatDate(trader.agent.last_decision_at)}</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Agent Stats */}
+                  {agentStats && (
+                    <div className="mt-4 pt-4 border-t space-y-3">
+                      <div className="text-sm font-semibold mb-2">Performance Metrics</div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="text-center p-2 bg-muted rounded">
+                          <div className="text-lg font-bold">{agentStats.trade_decisions}</div>
+                          <div className="text-xs text-muted-foreground">Trade Decisions</div>
+                        </div>
+                        <div className="text-center p-2 bg-muted rounded">
+                          <div className="text-lg font-bold">{agentStats.executed_trades}</div>
+                          <div className="text-xs text-muted-foreground">Executed</div>
+                        </div>
+                      </div>
+                      <div className="text-center p-2 bg-muted rounded">
+                        <div className="text-lg font-bold">{agentStats.execution_rate.toFixed(1)}%</div>
+                        <div className="text-xs text-muted-foreground">Execution Rate</div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* System Prompt Preview */}
+                  <div className="mt-4 pt-4 border-t">
+                    <div className="text-sm font-semibold mb-2">System Prompt</div>
+                    <div className="text-xs text-muted-foreground bg-muted p-2 rounded max-h-24 overflow-y-auto">
+                      {trader.agent.system_prompt}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-            {/* Positions */}
-            <Card>
+            {/* No Agent Message for admin traders without agents */}
+            {!trader.agent && trader.is_admin && (
+              <Card className="mb-6 border-dashed">
+                <CardContent className="py-6">
+                  <div className="text-center text-muted-foreground">
+                    <Bot className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No AI agent configured for this trader</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <Tabs defaultValue="overview" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="trading">Trading</TabsTrigger>
+                {trader.agent && <TabsTrigger value="agent">Agent Activity</TabsTrigger>}
+              </TabsList>
+
+              <TabsContent value="overview" className="space-y-4">
+                {/* Balance Card */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <DollarSign className="h-5 w-5" />
+                      Cash Balance
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-green-600">
+                      {formatCurrency(trader.balance_in_cents)}
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-1">
+                      <Calendar className="inline mr-1 h-3 w-3" />
+                      Created {formatDate(trader.created_at)}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Positions */}
+                <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <TrendingUp className="h-5 w-5" />
@@ -208,10 +316,12 @@ export function TraderDetailDrawer({ traderId, open, onOpenChange }: TraderDetai
                   </div>
                 )}
               </CardContent>
-            </Card>
+                </Card>
+              </TabsContent>
 
-            {/* Unfilled Orders */}
-            <Card>
+              <TabsContent value="trading" className="space-y-4">
+                {/* Unfilled Orders */}
+                <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <ShoppingCart className="h-5 w-5" />
@@ -256,10 +366,10 @@ export function TraderDetailDrawer({ traderId, open, onOpenChange }: TraderDetai
                   </ScrollArea>
                 )}
               </CardContent>
-            </Card>
+                </Card>
 
-            {/* Recent Trades */}
-            <Card>
+                {/* Recent Trades */}
+                <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <History className="h-5 w-5" />
@@ -303,7 +413,73 @@ export function TraderDetailDrawer({ traderId, open, onOpenChange }: TraderDetai
                   </ScrollArea>
                 )}
               </CardContent>
-            </Card>
+                </Card>
+              </TabsContent>
+
+              {trader.agent && (
+                <TabsContent value="agent" className="space-y-4">
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Brain className="h-5 w-5" />
+                        Recent Decisions
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {agentDecisions.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No decisions yet</p>
+                      ) : (
+                        <ScrollArea className="h-96">
+                          <div className="space-y-3">
+                            {agentDecisions.map((decision) => (
+                              <div
+                                key={decision.decision_id}
+                                className="p-3 rounded-lg border"
+                              >
+                                <div className="flex items-center justify-between mb-2">
+                                  <Badge
+                                    variant={decision.action === 'BUY' || decision.action === 'SELL' ? 'default' : 'secondary'}
+                                  >
+                                    {decision.action}
+                                  </Badge>
+                                  {decision.ticker && (
+                                    <span className="font-semibold text-sm">{decision.ticker}</span>
+                                  )}
+                                </div>
+                                {decision.reasoning && (
+                                  <p className="text-xs text-muted-foreground mb-2">
+                                    {decision.reasoning}
+                                  </p>
+                                )}
+                                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                  <span>
+                                    <Zap className="inline mr-1 h-3 w-3" />
+                                    {decision.trigger_type}
+                                  </span>
+                                  <span>{formatDate(decision.created_at)}</span>
+                                </div>
+                                {decision.thoughts && decision.thoughts.length > 0 && (
+                                  <div className="mt-2 pt-2 border-t">
+                                    <div className="text-xs font-semibold mb-1">Thought Process:</div>
+                                    <div className="space-y-1">
+                                      {decision.thoughts.slice(0, 3).map((thought) => (
+                                        <div key={thought.thought_id} className="text-xs text-muted-foreground">
+                                          <span className="font-semibold">{thought.step_number}.</span> {thought.content.slice(0, 100)}...
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              )}
+            </Tabs>
           </div>
         )}
       </SheetContent>

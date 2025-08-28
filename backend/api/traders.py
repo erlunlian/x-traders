@@ -3,7 +3,7 @@ Traders API endpoints
 """
 
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 from database import async_session
@@ -14,6 +14,8 @@ from database.repositories import (
     TradeRepository,
     TraderRepository,
 )
+from database.repositories_agents import AgentRepository
+from models.schemas.agents import Agent
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -74,6 +76,7 @@ class TraderDetailResponse(BaseModel):
     positions: List[PositionInfo]
     unfilled_orders: List[OrderInfo]
     recent_trades: List[TradeInfo]
+    agent: Optional[Agent] = None
 
 
 @router.get("/", response_model=List[TraderResponse])
@@ -118,6 +121,7 @@ async def get_trader_detail(trader_id: UUID) -> TraderDetailResponse:
         position_repo = PositionRepository(session)
         order_repo = OrderRepository(session)
         trade_repo = TradeRepository(session)
+        agent_repo = AgentRepository(session)
 
         # Get trader
         trader = await trader_repo.get_trader_or_none(trader_id)
@@ -169,6 +173,10 @@ async def get_trader_detail(trader_id: UUID) -> TraderDetailResponse:
             for trade in trades
         ]
 
+        # Get agent if exists
+        agents = await agent_repo.list_agents(trader_id=trader_id, limit=1)
+        agent = agents[0] if agents else None
+
         return TraderDetailResponse(
             trader_id=trader.trader_id,
             is_active=trader.is_active,
@@ -178,4 +186,5 @@ async def get_trader_detail(trader_id: UUID) -> TraderDetailResponse:
             positions=position_info,
             unfilled_orders=order_info,
             recent_trades=trade_info,
+            agent=agent,
         )

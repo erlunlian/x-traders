@@ -11,13 +11,13 @@ from pydantic import BaseModel, Field
 
 # Request models
 class CreateAgentRequest(BaseModel):
-    """Request to create a new agent"""
+    """Request to create a new agent with a new trader"""
     name: str = Field(min_length=1, max_length=100)
     llm_model: LLMModel
     system_prompt: str = Field(min_length=1, max_length=5000)
-    trader_id: UUID
     temperature: float = Field(default=0.7, ge=0.0, le=1.0)
     is_active: bool = True
+    initial_balance_in_cents: int = Field(default=10000000, ge=0)  # Default $100,000
 
 
 class UpdateAgentRequest(BaseModel):

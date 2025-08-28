@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.admin import router as admin_router
+from api.agents import router as agents_router
 from api.exchange import router as exchange_router
 from api.market_data import router as market_data_router
 from api.portfolio import router as portfolio_router
@@ -81,6 +82,7 @@ app.include_router(portfolio_router, prefix="/api/portfolio", tags=["Portfolio"]
 app.include_router(market_data_router, prefix="/api/market-data", tags=["Market Data"])
 app.include_router(admin_router, prefix="/api/admin", tags=["Admin"])
 app.include_router(traders_router, prefix="/api/traders", tags=["Traders"])
+app.include_router(agents_router, prefix="/api/agents", tags=["Agents"])
 app.include_router(x_webhook_router, prefix="/api", tags=["Webhooks"])
 
 

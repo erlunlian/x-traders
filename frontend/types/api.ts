@@ -43,9 +43,74 @@ export interface PriceHistory {
 export interface Agent {
   agent_id: string;
   name: string;
-  prompt: string;
-  balance_in_cents: number;
+  trader_id: string;
+  llm_model: string;
+  temperature: number;
+  system_prompt: string;
+  is_active: boolean;
+  total_decisions: number;
+  last_decision_at: string | null;
   created_at: string;
+  last_processed_tweet_at?: string | null;
+}
+
+export interface AgentThought {
+  thought_id: string;
+  step_number: number;
+  thought_type: string;
+  content: string;
+  created_at: string;
+}
+
+export interface AgentDecision {
+  decision_id: string;
+  agent_id: string;
+  agent_name?: string;
+  trigger_type: string;
+  trigger_tweet_id: string | null;
+  action: string;
+  ticker: string | null;
+  quantity: number | null;
+  reasoning: string | null;
+  order_id: string | null;
+  executed: boolean;
+  created_at: string;
+  thoughts?: AgentThought[];
+}
+
+export interface AgentStats {
+  agent_id: string;
+  name: string;
+  llm_model: string;
+  is_active: boolean;
+  total_decisions: number;
+  last_decision_at: string | null;
+  action_breakdown: Record<string, number>;
+  trade_decisions: number;
+  executed_trades: number;
+  execution_rate: number;
+}
+
+export interface CreateAgentRequest {
+  name: string;
+  llm_model: string;
+  system_prompt: string;
+  temperature?: number;
+  is_active?: boolean;
+  initial_balance_in_cents?: number;
+}
+
+export interface UpdateAgentRequest {
+  temperature?: number;
+  system_prompt?: string;
+  is_active?: boolean;
+}
+
+export interface LLMModel {
+  id: string;
+  value: string;
+  provider: string;
+  display_name: string;
 }
 
 export interface Trader {
@@ -54,6 +119,7 @@ export interface Trader {
   is_admin: boolean;
   balance_in_cents: number;
   created_at: string;
+  agent?: Agent;
 }
 
 export interface Position {
