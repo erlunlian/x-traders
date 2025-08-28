@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import List, Tuple
 
-from database.models import DBOrder
+from database.models import Order
 from enums import OrderStatus, OrderType, Side
 from models.core import OrderBook, OrderBookEntry
 from models.schemas import TradeData
@@ -14,7 +14,7 @@ class OrderBookMatcher:
         self.ticker = ticker
         self.order_book = OrderBook(ticker=ticker)
 
-    def match_order(self, order: DBOrder) -> Tuple[List[TradeData], int]:
+    def match_order(self, order: Order) -> Tuple[List[TradeData], int]:
         """
         Match order against book and return trades + remaining quantity.
         Returns: (trades, remaining_quantity)
@@ -29,7 +29,7 @@ class OrderBookMatcher:
             case _:
                 raise ValueError(f"Invalid order type: {order.order_type}")
 
-    def _match_ioc_order(self, order: DBOrder) -> Tuple[List[TradeData], int]:
+    def _match_ioc_order(self, order: Order) -> Tuple[List[TradeData], int]:
         """Match IOC order - fill immediately or cancel"""
         trades, remaining = self._match_aggressive(order)
 
@@ -41,18 +41,16 @@ class OrderBookMatcher:
 
         return trades, remaining
 
-    def _match_market_order(self, order: DBOrder) -> Tuple[List[TradeData], int]:
+    def _match_market_order(self, order: Order) -> Tuple[List[TradeData], int]:
         """Match market order at best available prices"""
         return self._match_aggressive(order)
 
-    def _match_limit_order(self, order: DBOrder) -> Tuple[List[TradeData], int]:
+    def _match_limit_order(self, order: Order) -> Tuple[List[TradeData], int]:
         """Match limit order if price crosses, else add to book"""
         trades = []
         remaining = order.quantity - order.filled_quantity
 
-        opposite_book = (
-            self.order_book.asks if order.side == Side.BUY else self.order_book.bids
-        )
+        opposite_book = self.order_book.asks if order.side == Side.BUY else self.order_book.bids
 
         while remaining > 0 and opposite_book:
             # Check if limit price crosses
@@ -73,14 +71,12 @@ class OrderBookMatcher:
 
         return trades, remaining
 
-    def _match_aggressive(self, order: DBOrder) -> Tuple[List[TradeData], int]:
+    def _match_aggressive(self, order: Order) -> Tuple[List[TradeData], int]:
         """Match aggressively against opposite side (for market/IOC orders)"""
         trades = []
         remaining = order.quantity - order.filled_quantity
 
-        opposite_book = (
-            self.order_book.asks if order.side == Side.BUY else self.order_book.bids
-        )
+        opposite_book = self.order_book.asks if order.side == Side.BUY else self.order_book.bids
 
         while remaining > 0 and opposite_book:
             best_price = opposite_book.keys()[0]
@@ -93,7 +89,7 @@ class OrderBookMatcher:
 
     def _match_at_price_level(
         self,
-        taker_order: DBOrder,
+        taker_order: Order,
         opposite_book: dict,
         price_in_cents: int,
         remaining_qty: int,
@@ -115,9 +111,7 @@ class OrderBookMatcher:
             fill_qty = min(remaining_qty, maker_entry.remaining_quantity)
 
             # Create trade
-            trade = self._create_trade(
-                taker_order, maker_entry, fill_qty, price_in_cents
-            )
+            trade = self._create_trade(taker_order, maker_entry, fill_qty, price_in_cents)
             trades.append(trade)
 
             # Update quantities
@@ -136,7 +130,7 @@ class OrderBookMatcher:
 
     def _create_trade(
         self,
-        taker_order: DBOrder,
+        taker_order: Order,
         maker_entry: OrderBookEntry,
         quantity: int,
         price_in_cents: int,
@@ -169,7 +163,7 @@ class OrderBookMatcher:
                 executed_at=datetime.now(timezone.utc),
             )
 
-    def add_order_to_book(self, order: DBOrder):
+    def add_order_to_book(self, order: Order):
         """Add unfilled limit order to book"""
         if order.order_type != OrderType.LIMIT:
             return  # Only limit orders rest in book
@@ -189,11 +183,9 @@ class OrderBookMatcher:
 
         self.order_book.add_order(order.side, order.limit_price, entry)
 
-    def cancel_order(self, order: DBOrder) -> bool:
+    def cancel_order(self, order: Order) -> bool:
         """Remove order from book"""
         if order.order_type != OrderType.LIMIT:
             return False
 
-        return self.order_book.remove_order(
-            order.side, order.limit_price, order.order_id
-        )
+        return self.order_book.remove_order(order.side, order.limit_price, order.order_id)

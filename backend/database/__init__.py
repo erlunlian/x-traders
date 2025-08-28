@@ -36,8 +36,10 @@ async def get_db():
 
 
 async def init_db():
-    """Create all tables"""
-    from database.models import Base
+    """Initialize database - with SQLModel tables are created via migrations"""
+    # Import all models to ensure they are registered with SQLModel
+    import database.models  # noqa: F401
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # With Alembic migrations, we don't need to create tables here
+    # Tables are created via migrations using './x db upgrade'
+    pass

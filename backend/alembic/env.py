@@ -13,10 +13,12 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 # Add parent directory to path to import our models
 sys.path.append(str(Path(__file__).parent.parent))
 
-# Import Base directly without importing __init__.py
-import database.models
+# Import SQLModel and all models to register them
+from sqlmodel import SQLModel
+import database.models  # This imports all models which registers them with SQLModel
 
-Base = database.models.Base
+# Use SQLModel's metadata as Base
+Base = SQLModel.metadata
 
 # Get DATABASE_URL directly from environment
 load_dotenv()
@@ -36,7 +38,7 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-target_metadata = Base.metadata
+target_metadata = Base
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
