@@ -49,7 +49,7 @@ import {
   TrendingDown
 } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
-import type { Agent, AgentStats, AgentDecision, AgentThought } from '@/types/api';
+import type { Agent, AgentStats, AgentDecision, AgentThought, AgentMemoryState } from '@/types/api';
 
 interface Position {
   ticker: string;
@@ -103,12 +103,13 @@ interface AgentDetailDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-type SectionType = 'overview' | 'trades' | 'thoughts';
+type SectionType = 'overview' | 'trades' | 'activity' | 'memory';
 
 const navigationItems = [
   { id: 'overview' as SectionType, name: 'Overview', icon: ChartBar },
   { id: 'trades' as SectionType, name: 'Trade History', icon: History },
-  { id: 'thoughts' as SectionType, name: 'Agent Activity', icon: Brain },
+  { id: 'activity' as SectionType, name: 'Agent Activity', icon: Brain },
+  { id: 'memory' as SectionType, name: 'Memory', icon: MessageSquare },
 ];
 
 export function AgentDetailDialog({ traderId, open, onOpenChange }: AgentDetailDialogProps) {
@@ -126,6 +127,8 @@ export function AgentDetailDialog({ traderId, open, onOpenChange }: AgentDetailD
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [loadingDecisions, setLoadingDecisions] = useState(false);
   const [expandedDecision, setExpandedDecision] = useState<string | null>(null);
+  const [agentMemory, setAgentMemory] = useState<AgentMemoryState | null>(null);
+  const [loadingMemory, setLoadingMemory] = useState(false);
 
   useEffect(() => {
     if (traderId && open) {
@@ -153,15 +156,17 @@ export function AgentDetailDialog({ traderId, open, onOpenChange }: AgentDetailD
       const data = await apiClient.get<TraderDetail>(`/api/traders/${traderId}`);
       setTrader(data);
       
-      // If trader has an agent, fetch agent stats and decisions
+      // If trader has an agent, fetch agent stats, decisions, and memory
       if (data.agent) {
         try {
-          const [stats, decisions] = await Promise.all([
+          const [stats, decisions, memory] = await Promise.all([
             apiClient.get<AgentStats>(`/api/agents/${data.agent.agent_id}/stats`),
-            apiClient.get<{ decisions: AgentDecision[] }>(`/api/agents/${data.agent.agent_id}/decisions?limit=20`)
+            apiClient.get<{ decisions: AgentDecision[] }>(`/api/agents/${data.agent.agent_id}/decisions?limit=20`),
+            apiClient.get<AgentMemoryState>(`/api/agents/${data.agent.agent_id}/memory`)
           ]);
           setAgentStats(stats);
           setAgentDecisions(decisions.decisions);
+          setAgentMemory(memory);
         } catch (err) {
           console.error('Error fetching agent data:', err);
         }
@@ -661,6 +666,90 @@ export function AgentDetailDialog({ traderId, open, onOpenChange }: AgentDetailD
     );
   };
 
+  const renderMemory = () => {
+    if (!trader?.agent) {
+      return (
+        <Card>
+          <CardContent className="py-8">
+            <div className="text-center text-muted-foreground">
+              <Bot className="h-12 w-12 mx-auto mb-3 opacity-50" />
+              <p>No AI agent configured for this trader</p>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <MessageSquare className="h-5 w-5" />
+              Agent Memory
+            </CardTitle>
+            <CardDescription>
+              Current working memory and insights stored by the agent
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!agentMemory ? (
+              <p className="text-sm text-muted-foreground">Loading memory...</p>
+            ) : (
+              <div className="space-y-4">
+                {/* Working Memory */}
+                {agentMemory.working_memory && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-semibold flex items-center gap-2">
+                      <Brain className="h-4 w-4" />
+                      Working Memory
+                    </h4>
+                    <div className="bg-muted/50 p-3 rounded-lg">
+                      <p className="text-sm whitespace-pre-wrap font-mono">
+                        {agentMemory.working_memory.content}
+                      </p>
+                      <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                        <span>Tokens: {agentMemory.working_memory.token_count}</span>
+                        <span>Updated: {formatDate(agentMemory.working_memory.created_at)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Insights */}
+                {agentMemory.insights && agentMemory.insights.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-semibold flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4" />
+                      Insights ({agentMemory.insights.length})
+                    </h4>
+                    <div className="space-y-2">
+                      {agentMemory.insights.map((insight, index) => (
+                        <div key={insight.memory_id || index} className="bg-muted/30 p-3 rounded-lg">
+                          <p className="text-sm whitespace-pre-wrap">
+                            {insight.content}
+                          </p>
+                          <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                            <span>Tokens: {insight.token_count}</span>
+                            <span>Created: {formatDate(insight.created_at)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {(!agentMemory.working_memory && (!agentMemory.insights || agentMemory.insights.length === 0)) && (
+                  <p className="text-sm text-muted-foreground italic">No memory data available yet</p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
   const renderAgentActivity = () => {
     if (!trader?.agent) {
       return (
@@ -681,10 +770,10 @@ export function AgentDetailDialog({ traderId, open, onOpenChange }: AgentDetailD
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
               <Brain className="h-5 w-5" />
-              Agent Decision History
+              Agent Activity Log
             </CardTitle>
             <CardDescription>
-              View the agent's thought process and decision-making
+              Agent's thought process and decision-making history
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -745,28 +834,37 @@ export function AgentDetailDialog({ traderId, open, onOpenChange }: AgentDetailD
                       )}
                     </button>
                     
-                    {expandedDecision === decision.decision_id && decision.thoughts && decision.thoughts.length > 0 && (
+                    {expandedDecision === decision.decision_id && (
                       <div className="border-t bg-muted/20 p-4">
-                        <h4 className="text-sm font-semibold mb-3">Thought Process:</h4>
-                        <div className="space-y-2">
-                          {decision.thoughts.map((thought, index) => (
-                            <div key={thought.thought_id} className="flex gap-3">
-                              <div className="flex-shrink-0">
-                                <Badge variant="outline" className="text-xs">
-                                  {thought.step_number || index + 1}
-                                </Badge>
-                              </div>
-                              <div className="flex-1">
-                                <div className="text-xs text-muted-foreground mb-1">
-                                  {thought.thought_type}
+                        {decision.thoughts && decision.thoughts.length > 0 ? (
+                          <>
+                            <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                              <MessageSquare className="h-4 w-4" />
+                              Thought Process
+                            </h4>
+                            <div className="space-y-2">
+                              {decision.thoughts.map((thought, index) => (
+                                <div key={thought.thought_id || index} className="flex gap-3">
+                                  <div className="flex-shrink-0">
+                                    <Badge variant="outline" className="text-xs">
+                                      Step {thought.step_number || index + 1}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex-1">
+                                    <div className="text-xs text-muted-foreground mb-1 font-medium">
+                                      {thought.thought_type}
+                                    </div>
+                                    <p className="text-sm whitespace-pre-wrap">
+                                      {thought.content}
+                                    </p>
+                                  </div>
                                 </div>
-                                <p className="text-sm">
-                                  {thought.content}
-                                </p>
-                              </div>
+                              ))}
                             </div>
-                          ))}
-                        </div>
+                          </>
+                        ) : (
+                          <p className="text-sm text-muted-foreground italic">No thought process recorded for this decision</p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -830,8 +928,8 @@ export function AgentDetailDialog({ traderId, open, onOpenChange }: AgentDetailD
             <nav className="flex-1 p-3">
               <div className="space-y-1">
                 {navigationItems.map((item) => {
-                  // Hide thoughts section if no agent
-                  if (item.id === 'thoughts' && !trader?.agent) return null;
+                  // Hide activity and memory sections if no agent
+                  if ((item.id === 'activity' || item.id === 'memory') && !trader?.agent) return null;
                   
                   return (
                     <button
@@ -878,7 +976,8 @@ export function AgentDetailDialog({ traderId, open, onOpenChange }: AgentDetailD
                   <>
                     {activeSection === 'overview' && renderOverview()}
                     {activeSection === 'trades' && renderTradeHistory()}
-                    {activeSection === 'thoughts' && renderAgentActivity()}
+                    {activeSection === 'activity' && renderAgentActivity()}
+                    {activeSection === 'memory' && renderMemory()}
                   </>
                 )}
               </div>

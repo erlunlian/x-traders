@@ -159,7 +159,7 @@ class AgentListResponse(BaseModel):
 class DecisionListResponse(BaseModel):
     """List of decisions"""
 
-    decisions: List[DecisionInfo]
+    decisions: List[DecisionDetail]
     total: int
     offset: int
     limit: int

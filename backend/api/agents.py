@@ -12,8 +12,6 @@ from database.repositories import LedgerRepository, PositionRepository
 from database.repositories_agents import AgentRepository
 from database.repositories_traders import TraderRepository
 from database.repositories_trades import TradeRepository
-from sqlalchemy import func
-from sqlmodel import select
 from enums import LLMModel
 from models.schemas.agents import (
     Agent,
@@ -120,34 +118,32 @@ async def get_agent_leaderboard() -> AgentLeaderboardResponse:
         ledger_repo = LedgerRepository(session)
         position_repo = PositionRepository(session)
         trade_repo = TradeRepository(session)
-        
+
         # Get all agents
         agents = await agent_repo.list_agents(limit=1000)
-        
+
         leaderboard_entries = []
         for agent in agents:
             # Get current cash balance
             balance = await ledger_repo.get_cash_balance_in_cents(agent.trader_id)
-            
+
             # Get positions and calculate total value
             positions = await position_repo.get_all_positions(agent.trader_id)
-            
+
             # For now, we'll use a simplified calculation
             # In a real system, we'd need to get current market prices
-            total_position_value = sum(
-                pos.quantity * pos.avg_cost for pos in positions
-            )
-            
+            total_position_value = sum(pos.quantity * pos.avg_cost for pos in positions)
+
             total_assets_value = balance + total_position_value
-            
+
             # Count total trades executed
             trades = await trade_repo.get_trader_trades(agent.trader_id, limit=10000)
             total_trades = len(trades)
-            
+
             # Calculate profit/loss (assuming initial balance was $100,000)
             initial_balance = 10000000  # $100,000 in cents
             profit_loss = balance - initial_balance
-            
+
             entry = AgentLeaderboardEntry(
                 agent_id=agent.agent_id,
                 name=agent.name,
@@ -163,12 +159,10 @@ async def get_agent_leaderboard() -> AgentLeaderboardResponse:
                 last_decision_at=agent.last_decision_at,
             )
             leaderboard_entries.append(entry)
-        
+
         # Sort by total assets value by default
-        leaderboard_entries.sort(
-            key=lambda x: x.total_assets_value_in_cents, reverse=True
-        )
-        
+        leaderboard_entries.sort(key=lambda x: x.total_assets_value_in_cents, reverse=True)
+
         return AgentLeaderboardResponse(
             agents=leaderboard_entries,
             total=len(leaderboard_entries),
@@ -345,10 +339,4 @@ async def toggle_agent(agent_id: UUID) -> Agent:
             # The agent will stop itself when it detects is_active=False
             pass
 
-        return updated_agent
-
-
-
-
-
-
+    return updated_agent

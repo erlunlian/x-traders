@@ -91,6 +91,20 @@ export interface AgentStats {
   execution_rate: number;
 }
 
+export interface MemoryInfo {
+  memory_id: string;
+  memory_type: string;
+  content: string;
+  token_count: number;
+  created_at: string;
+}
+
+export interface AgentMemoryState {
+  working_memory: MemoryInfo | null;
+  insights: MemoryInfo[];
+  total_insights: number;
+}
+
 export interface AgentLeaderboardEntry {
   agent_id: string;
   name: string;

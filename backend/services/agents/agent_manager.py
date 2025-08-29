@@ -10,6 +10,7 @@ from database import async_session
 from database.repositories import AgentRepository
 from models.schemas.agents import Agent
 from services.agents.autonomous_agent import AutonomousAgent
+from services.agents.db_utils import get_agent_or_none_safe, get_active_agents_safe
 
 
 class AgentManager:
@@ -25,9 +26,7 @@ class AgentManager:
         self.running = True
 
         # Load all active agents from database
-        async with async_session() as session:
-            repo = AgentRepository(session)
-            active_agents = await repo.get_active_agents()
+        active_agents = await get_active_agents_safe()
 
         print(f"Starting {len(active_agents)} active agents...")
 
@@ -92,10 +91,8 @@ class AgentManager:
         # Stop if running
         await self.stop_agent(agent_id)
 
-        # Reload from database
-        async with async_session() as session:
-            repo = AgentRepository(session)
-            agent = await repo.get_agent(agent_id)
+        # Reload from database using safe method
+        agent = await get_agent_or_none_safe(agent_id)
 
         if agent and agent.is_active:
             await self.start_agent(agent)
@@ -154,9 +151,7 @@ class AgentManager:
                 await asyncio.sleep(60)
 
                 # Load any newly activated agents
-                async with async_session() as session:
-                    repo = AgentRepository(session)
-                    active_agents = await repo.get_active_agents()
+                active_agents = await get_active_agents_safe()
 
                 for agent in active_agents:
                     if agent.agent_id not in self.agents:

@@ -18,8 +18,6 @@ from langchain_core.messages import (
 from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, Field
 
-from database import async_session
-from database.repositories import AgentRepository, XDataRepository
 from enums import AgentAction, AgentDecisionTrigger, AgentThoughtType
 from models.schemas.agents import Agent, AgentThought
 from models.schemas.tweet_feed import TweetForAgent
@@ -28,12 +26,16 @@ from services.agents.agent_tools import (
     get_utility_tools,
     get_x_data_tools,
 )
+from services.agents.db_utils import (
+    get_agent_safe,
+    get_tweets_safe,
+    record_decision_safe,
+    save_orphan_thoughts_safe,
+    update_last_processed_tweet_safe,
+)
 from services.agents.memory_manager import MemoryManager
 from services.agents.system_prompt import build_system_prompt
 from services.agents.utils import create_llm
-
-# Note: We no longer need ThinkingResponse or ToolCall classes
-# OpenAI's native tool calling handles this for us
 
 
 class AgentState(BaseModel):
@@ -119,32 +121,27 @@ class AutonomousAgent:
 
     async def check_active_node(self, state: AgentState) -> AgentState:
         """Check if agent is still active"""
-        async with async_session() as session:
-            repo = AgentRepository(session)
-            agent = await repo.get_agent(self.agent.agent_id)
-            state.is_active = agent.is_active
+        # Use isolated database operation
+        agent = await get_agent_safe(self.agent.agent_id)
+        state.is_active = agent.is_active
 
         # Increment cycle count
         state.cycle_count += 1
 
         # Check for new tweets every 5 cycles
         if state.cycle_count % 5 == 0:
-            async with async_session() as session:
-                x_repo = XDataRepository(session)
-                # Use the new method that returns properly typed TweetForAgent models
-                state.pending_tweets = await x_repo.get_tweets_for_agent(
-                    after_timestamp=self.agent.last_processed_tweet_at,
-                    limit=100,
-                )
+            # Use isolated database operation for tweets
+            state.pending_tweets = await get_tweets_safe(
+                after_timestamp=self.agent.last_processed_tweet_at,
+                limit=100,
+            )
 
-                if state.pending_tweets:
-                    # Update last processed timestamp
-                    latest_timestamp = max(t.fetched_at for t in state.pending_tweets)
-                    agent_repo = AgentRepository(session)
-                    await agent_repo.update_last_processed_tweet_without_commit(
-                        self.agent.agent_id, latest_timestamp
-                    )
-                    await session.commit()
+            if state.pending_tweets:
+                # Update last processed timestamp in isolated transaction
+                latest_timestamp = max(t.fetched_at for t in state.pending_tweets)
+                await update_last_processed_tweet_safe(
+                    self.agent.agent_id, latest_timestamp
+                )
 
         return state
 
@@ -292,24 +289,22 @@ Cycle: {state.cycle_count}
                             reasoning = msg.content[:500]
                             break
 
-                    async with async_session() as session:
-                        repo = AgentRepository(session)
-                        decision = await repo.record_decision_without_commit(
-                            agent_id=self.agent.agent_id,
-                            trigger_type=trigger_type,
-                            action=action,
-                            thoughts=[
-                                (t.thought_type, t.content) for t in state.thoughts[-5:]
-                            ],
-                            ticker=arguments.get("ticker"),
-                            quantity=arguments.get("quantity"),
-                            reasoning=reasoning,
-                            trigger_tweet_id=trigger_tweet_id,
-                            order_id=UUID(order_id) if order_id else None,
-                            executed=success,
-                        )
-                        await session.commit()
-                        state.last_decision_id = decision.decision_id
+                    # Use isolated database operation for recording decision
+                    decision_id = await record_decision_safe(
+                        agent_id=self.agent.agent_id,
+                        trigger_type=trigger_type,
+                        action=action,
+                        thoughts=[
+                            (t.thought_type, t.content) for t in state.thoughts[-5:]
+                        ],
+                        ticker=arguments.get("ticker"),
+                        quantity=arguments.get("quantity"),
+                        reasoning=reasoning,
+                        trigger_tweet_id=trigger_tweet_id,
+                        order_id=UUID(order_id) if order_id else None,
+                        executed=success,
+                    )
+                    state.last_decision_id = decision_id
 
             except Exception as e:
                 # Create error message as ToolMessage
@@ -333,30 +328,16 @@ Cycle: {state.cycle_count}
 
         return state
 
-    # Note: rest_node removed - rest is now handled as a tool
-
     async def save_thoughts_node(self, state: AgentState) -> AgentState:
         """Save thoughts to database using repository and compress memory if needed"""
         if state.thoughts:
-            # Save thoughts using repository method
-            async with async_session() as session:
-                repo = AgentRepository(session)
-
-                # If we have a current decision, associate thoughts with it
-                if state.last_decision_id:
-                    # The thoughts are already saved with the decision
-                    pass
-                else:
-                    # Save orphan thoughts (not associated with a decision)
-                    for thought in state.thoughts[-10:]:  # Save last 10 thoughts
-                        await repo.save_orphan_thought_without_commit(
-                            agent_id=self.agent.agent_id,
-                            thought_type=thought.thought_type,
-                            content=thought.content,
-                            step_number=thought.step_number,
-                        )
-
-                await session.commit()
+            # If we have a current decision, thoughts are already saved with it
+            if not state.last_decision_id:
+                # Save orphan thoughts using isolated database operation
+                await save_orphan_thoughts_safe(
+                    agent_id=self.agent.agent_id,
+                    thoughts=state.thoughts[-10:]  # Save last 10 thoughts
+                )
 
             # Compress memory if needed
             if await self.memory_manager.should_compress():
@@ -373,7 +354,7 @@ Cycle: {state.cycle_count}
             return END
         return "continue"
 
-    def route_from_think(self, state: AgentState) -> str:
+    def route_from_think(self, state: AgentState) -> str :
         """Route from think node based on whether there are tool calls"""
         if state.pending_tool_calls:
             return "execute"

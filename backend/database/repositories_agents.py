@@ -290,21 +290,45 @@ class AgentRepository:
         agent_id: UUID,
         limit: int = 50,
         offset: int = 0,
-    ) -> List[DecisionInfo]:
-        """List decisions for an agent"""
-        query = select(AgentDecision).where(AgentDecision.agent_id == agent_id)
-
+    ) -> List[DecisionDetail]:
+        """List decisions for an agent with full thought trail"""
+        # Get decisions with agent info
         query = (
-            query.order_by(desc(AgentDecision.created_at)).limit(limit).offset(offset)
+            select(AgentDecision)
+            .join(AIAgent)
+            .where(AgentDecision.agent_id == agent_id)
+            .order_by(desc(AgentDecision.created_at))
+            .limit(limit)
+            .offset(offset)
         )
 
         result = await self.session.execute(query)
         decisions = result.scalars().all()
 
+        # Get all thoughts for these decisions in a single query
+        decision_ids = [d.decision_id for d in decisions]
+        if decision_ids:
+            thoughts_result = await self.session.execute(
+                select(AgentThought)
+                .where(AgentThought.decision_id.in_(decision_ids))
+                .order_by(AgentThought.decision_id, AgentThought.step_number)
+            )
+            all_thoughts = thoughts_result.scalars().all()
+        else:
+            all_thoughts = []
+
+        # Group thoughts by decision_id
+        thoughts_by_decision = {}
+        for thought in all_thoughts:
+            if thought.decision_id not in thoughts_by_decision:
+                thoughts_by_decision[thought.decision_id] = []
+            thoughts_by_decision[thought.decision_id].append(thought)
+
         return [
-            DecisionInfo(
+            DecisionDetail(
                 decision_id=d.decision_id,
                 agent_id=d.agent_id,
+                agent_name=d.agent.name if d.agent else "Unknown",
                 trigger_type=d.trigger_type,
                 trigger_tweet_id=d.trigger_tweet_id,
                 action=d.action,
@@ -314,6 +338,16 @@ class AgentRepository:
                 order_id=d.order_id,
                 executed=d.executed,
                 created_at=d.created_at,
+                thoughts=[
+                    ThoughtInfo(
+                        thought_id=t.thought_id,
+                        step_number=t.step_number,
+                        thought_type=t.thought_type,
+                        content=t.content,
+                        created_at=t.created_at,
+                    )
+                    for t in thoughts_by_decision.get(d.decision_id, [])
+                ],
             )
             for d in decisions
         ]
