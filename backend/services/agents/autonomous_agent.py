@@ -168,6 +168,25 @@ Cycle: {state.cycle_count}
             # Add new context as a message
             state.messages.append(HumanMessage(content=context))
 
+    async def compact_if_needed(self, state: AgentState) -> None:
+        """Compact memory if above threshold; append errors to state context."""
+        try:
+            if await self.memory_manager.should_compress():
+                await self.memory_manager.compress_memory()
+                # Record a compaction thought so it shows in activity
+                thought_info = await create_thought_safe(
+                    agent_id=self.agent.agent_id,
+                    step_number=state.cycle_count,
+                    thought_type=AgentThoughtType.COMPACT,
+                    content="Compressed working memory due to token threshold.",
+                    tool_name=None,
+                    tool_args=None,
+                    tool_result=None,
+                )
+                state.thoughts.append(thought_info)
+        except Exception as e:
+            state.error_context += f"\nMemory compaction error: {str(e)}"
+
     async def think_node(self, state: AgentState) -> AgentState:
         """Main thinking/decision node using native tool calling"""
         # set context for think node
@@ -199,6 +218,12 @@ Cycle: {state.cycle_count}
                 tool_result=None,  # No tool result
             )
             state.thoughts.append(thought_info)
+
+            # Persist key reasoning to working memory for continuity
+            await self.memory_manager.add_to_memory([(AgentThoughtType.THINKING, response.content)])
+
+        # Compact memory after thinking if needed
+        await self.compact_if_needed(state)
 
         return state
 
@@ -272,6 +297,16 @@ Cycle: {state.cycle_count}
                 )
                 state.thoughts.append(tool_thought)
 
+                # Persist tool outcome to working memory for continuity
+                await self.memory_manager.add_to_memory(
+                    [
+                        (
+                            AgentThoughtType.TOOL_CALL,
+                            f"{tool_name} args={json.dumps(arguments, default=str)} result={result_str}",
+                        )
+                    ]
+                )
+
             except Exception as e:
                 # Create error message as ToolMessage
                 error_message = ToolMessage(
@@ -287,8 +322,21 @@ Cycle: {state.cycle_count}
                 )
                 state.thoughts.append(error_thought)
 
+                # Persist error to working memory
+                await self.memory_manager.add_to_memory(
+                    [
+                        (
+                            AgentThoughtType.ERROR,
+                            f"{tool_name} failed with error: {str(e)}",
+                        )
+                    ]
+                )
+
         # Clear pending tool calls after processing
         state.pending_tool_calls = []
+
+        # Compact memory after executing tools if needed
+        await self.compact_if_needed(state)
 
         return state
 

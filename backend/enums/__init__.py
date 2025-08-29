@@ -89,6 +89,7 @@ class AgentThoughtType(str, Enum):
     THINKING = "THINKING"  # General thinking
     TOOL_CALL = "TOOL_CALL"  # Tool call
     ERROR = "ERROR"  # Error
+    COMPACT = "COMPACT"  # Memory compaction event
 
 
 class AgentMemoryType(str, Enum):
