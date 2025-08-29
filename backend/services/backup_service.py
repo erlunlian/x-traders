@@ -10,13 +10,7 @@ from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.repositories import XDataRepository
-from models.schemas.backup import (
-    BackupMetadata,
-    BackupStats,
-    BackupTweet,
-    BackupUser,
-    TweetBackup,
-)
+from models.schemas.backup import BackupMetadata, BackupStats, BackupTweet, BackupUser, TweetBackup
 from models.schemas.x_api import TweetInfo, UserInfo
 
 
@@ -28,9 +22,7 @@ class BackupService:
             self.backup_dir = Path(backup_dir)
         else:
             # Default to scripts/data/tweet_backups
-            self.backup_dir = (
-                Path(__file__).parent.parent / "scripts" / "data" / "tweet_backups"
-            )
+            self.backup_dir = Path(__file__).parent.parent / "scripts" / "data" / "tweet_backups"
 
         # Ensure backup directory exists
         self.backup_dir.mkdir(parents=True, exist_ok=True)
@@ -166,6 +158,7 @@ class BackupService:
                     location=backup_user.location,
                     num_followers=backup_user.num_followers,
                     num_following=backup_user.num_following,
+                    fetched_at=backup_user.fetched_at,
                 )
                 await repo.upsert_user_without_commit(user_info)
                 stats.users_processed += 1
@@ -190,9 +183,7 @@ class BackupService:
                     retweeted_tweet_id=backup_tweet.retweeted_tweet_id,
                     entities=None,  # Will handle entities separately if needed
                 )
-                await repo.upsert_tweet_without_commit(
-                    tweet, backup_tweet.author_username
-                )
+                await repo.upsert_tweet_without_commit(tweet, backup_tweet.author_username)
                 stats.tweets_processed += 1
 
             # Commit all changes
@@ -226,12 +217,17 @@ class BackupService:
                     if "tweet_created_at" in tweet and isinstance(tweet["tweet_created_at"], str):
                         # Parse Twitter date format or ISO format
                         from email.utils import parsedate_to_datetime
+
                         try:
-                            tweet["tweet_created_at"] = parsedate_to_datetime(tweet["tweet_created_at"])
+                            tweet["tweet_created_at"] = parsedate_to_datetime(
+                                tweet["tweet_created_at"]
+                            )
                         except (ValueError, TypeError):
                             # Try ISO format as fallback
                             try:
-                                tweet["tweet_created_at"] = datetime.fromisoformat(tweet["tweet_created_at"].replace("Z", "+00:00"))
+                                tweet["tweet_created_at"] = datetime.fromisoformat(
+                                    tweet["tweet_created_at"].replace("Z", "+00:00")
+                                )
                             except (ValueError, TypeError):
                                 # Use current time as last resort
                                 tweet["tweet_created_at"] = datetime.now(timezone.utc)

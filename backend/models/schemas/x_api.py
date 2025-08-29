@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, validator
@@ -40,7 +40,7 @@ class TweetInfo(BaseModel):
     like_count: int = 0
     quote_count: int = 0
     view_count: int = 0
-    created_at: str
+    created_at: datetime
     bookmark_count: int = 0
     is_reply: bool = False
     reply_to_tweet_id: Optional[str] = None
@@ -52,6 +52,29 @@ class TweetInfo(BaseModel):
 
     class Config:
         extra = "allow"  # Allow extra fields from API
+
+    @validator("created_at", pre=True)
+    def coerce_created_at(cls, v):
+        """Accept ISO strings, Twitter strings, or datetime and ensure tz-aware datetime."""
+        from email.utils import parsedate_to_datetime
+
+        if isinstance(v, datetime):
+            return v if v.tzinfo else v.replace(tzinfo=timezone.utc)
+        if isinstance(v, str):
+            # Try ISO first
+            try:
+                iso_str = v.replace("Z", "+00:00")
+                dt = datetime.fromisoformat(iso_str)
+                return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+            except Exception:
+                pass
+            # Try Twitter format
+            try:
+                return parsedate_to_datetime(v)
+            except Exception:
+                pass
+        # Fallback: now
+        return datetime.now(timezone.utc)
 
     @validator("entities", pre=True)
     def parse_entities(cls, v):
@@ -116,7 +139,7 @@ class TweetInfo(BaseModel):
 
         try:
             tweet = cls(**data)
-            print(f"        ✓ Successfully created Tweet object")
+            print("        ✓ Successfully created Tweet object")
             return tweet
         except Exception as e:
             print(f"        ✗ Error creating Tweet object: {e}")

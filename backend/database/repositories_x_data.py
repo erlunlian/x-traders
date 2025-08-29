@@ -15,16 +15,38 @@ from models.schemas.tweet_feed import TweetForAgent
 from models.schemas.x_api import TweetInfo, UserInfo
 
 
-def parse_twitter_date(date_str: str) -> datetime:
-    """Parse Twitter's date format to datetime.
-    Twitter format: 'Wed Jun 25 22:21:48 +0000 2025'
+def parse_twitter_date(value) -> datetime:
+    """Parse a date value to timezone-aware datetime.
+
+    Supports:
+    - Twitter string format: 'Wed Jun 25 22:21:48 +0000 2025'
+    - ISO 8601 strings (with or without 'Z')
+    - datetime instances (returned as-is)
     """
-    try:
-        # Use email.utils.parsedate_to_datetime which handles this format well
-        return parsedate_to_datetime(date_str)
-    except (ValueError, TypeError):
-        # Fallback to current time if parsing fails
-        return datetime.now(timezone.utc)
+    # Already a datetime
+    if isinstance(value, datetime):
+        # Ensure timezone-aware; assume UTC if naive
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value
+
+    # Try ISO 8601 strings
+    if isinstance(value, str):
+        try:
+            # Handle trailing Z for UTC
+            iso_str = value.replace("Z", "+00:00")
+            return datetime.fromisoformat(iso_str)
+        except (ValueError, TypeError):
+            pass
+
+        try:
+            # Twitter format via email.utils
+            return parsedate_to_datetime(value)
+        except (ValueError, TypeError):
+            pass
+
+    # Fallback to current time if parsing fails
+    return datetime.now(timezone.utc)
 
 
 class XDataRepository:
@@ -246,7 +268,7 @@ class XDataRepository:
                     "quoted_tweet_id": tweet.quoted_tweet_id,
                     "retweeted_tweet_id": tweet.retweeted_tweet_id,
                     "entities": entities_dict,
-                    "tweet_created_at": tweet.created_at,
+                    "tweet_created_at": parse_twitter_date(tweet.created_at),
                     "fetched_at": datetime.now(timezone.utc),
                 }
             )
