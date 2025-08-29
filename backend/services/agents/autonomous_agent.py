@@ -218,11 +218,11 @@ Cycle: {state.cycle_count}
 
                 # Convert result to dict/string for ToolMessage
                 if hasattr(result, "model_dump"):
-                    result_str = json.dumps(result.model_dump())
+                    result_str = json.dumps(result.model_dump(), default=str)
                 elif hasattr(result, "dict"):
-                    result_str = json.dumps(result.dict())
+                    result_str = json.dumps(result.dict(), default=str)
                 elif isinstance(result, dict):
-                    result_str = json.dumps(result)
+                    result_str = json.dumps(result, default=str)
                 else:
                     result_str = str(result)
 
