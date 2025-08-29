@@ -136,7 +136,7 @@ class AgentMemory(SQLModel, table=True):
             nullable=False,
         )
     )
-    content: str = Field(sa_column=Column(String(10000), nullable=False))
+    content: str = Field(sa_column=Column(String, nullable=False))
     token_count: int = Field(sa_column=Column(Integer, nullable=False))
 
     created_at: datetime = Field(
