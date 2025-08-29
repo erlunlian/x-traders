@@ -21,6 +21,7 @@ from services.agents.db_utils import (
     get_agent_safe,
     get_tweets_safe,
     update_last_processed_tweet_safe,
+    update_thought_with_result_safe,
 )
 from services.agents.memory_manager import MemoryManager
 from services.agents.system_prompt import build_system_prompt
@@ -235,6 +236,15 @@ Cycle: {state.cycle_count}
                     break
 
                 # Execute the tool
+                tool_thought = await create_thought_safe(
+                    agent_id=self.agent.agent_id,
+                    step_number=state.cycle_count,
+                    thought_type=AgentThoughtType.TOOL_CALL,
+                    content="",
+                    tool_name=AgentToolName(tool_name),
+                    tool_args=json.dumps(arguments, default=str),
+                    tool_result=None,
+                )
                 result = await self.tools_map[tool_name](**arguments)
 
                 # Convert result to dict/string for ToolMessage
@@ -255,14 +265,9 @@ Cycle: {state.cycle_count}
                 state.messages.append(tool_message)
 
                 # Record all tool calls as thoughts
-                tool_thought = await create_thought_safe(
-                    agent_id=self.agent.agent_id,
-                    step_number=state.cycle_count,
-                    thought_type=AgentThoughtType.TOOL_CALL,
-                    content="",
-                    tool_name=AgentToolName(tool_name),
-                    tool_args=json.dumps(arguments, default=str),
-                    tool_result=result_str,
+                tool_thought = await update_thought_with_result_safe(
+                    thought_id=tool_thought.id,
+                    result=result_str,
                 )
                 state.thoughts.append(tool_thought)
 
@@ -275,14 +280,9 @@ Cycle: {state.cycle_count}
                 state.messages.append(error_message)
 
                 # Log error as thought
-                error_thought = await create_thought_safe(
-                    agent_id=self.agent.agent_id,
-                    step_number=state.cycle_count,
-                    thought_type=AgentThoughtType.ERROR,
-                    content=f"Error with {tool_name}: {str(e)}",
-                    tool_name=AgentToolName(tool_name),
-                    tool_args=json.dumps(arguments, default=str),
-                    tool_result=f"Error with {tool_name}: {str(e)}",
+                error_thought = await update_thought_with_result_safe(
+                    thought_id=tool_thought.id,
+                    result=f"Error with {tool_name}: {str(e)}",
                 )
                 state.thoughts.append(error_thought)
 

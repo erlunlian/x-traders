@@ -217,6 +217,15 @@ class AgentRepository:
             total_tokens=total_tokens,
         )
 
+    async def update_thought_with_result_without_commit(
+        self, thought_id: UUID, result: str
+    ) -> None:
+        """Update a thought with a result"""
+        thought = await self._get_db_thought_or_none(thought_id)
+        if thought:
+            thought.tool_result = result
+            await self.session.flush()
+
     async def create_thought_without_commit(
         self,
         agent_id: UUID,
