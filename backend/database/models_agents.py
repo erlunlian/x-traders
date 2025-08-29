@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlmodel import Field, Relationship, SQLModel
 
-from enums import AgentAction, AgentDecisionTrigger, AgentMemoryType, AgentThoughtType, LLMModel
+from enums import AgentMemoryType, AgentThoughtType, AgentToolName, LLMModel
 
 
 class AIAgent(SQLModel, table=True):
@@ -66,73 +66,9 @@ class AIAgent(SQLModel, table=True):
     )
 
     # Relationships
-    decisions: List["AgentDecision"] = Relationship(back_populates="agent", cascade_delete=True)
     memory_snapshots: List["AgentMemory"] = Relationship(
         back_populates="agent", cascade_delete=True
     )
-
-    class Config:
-        arbitrary_types_allowed = True
-
-
-class AgentDecision(SQLModel, table=True):
-    """Agent decision tracking"""
-
-    __tablename__ = "agent_decisions"
-
-    decision_id: uuid.UUID = Field(
-        default_factory=uuid.uuid4,
-        sa_column=Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4),
-    )
-    agent_id: uuid.UUID = Field(
-        sa_column=Column(PGUUID(as_uuid=True), ForeignKey("ai_agents.agent_id"), nullable=False)
-    )
-
-    # What triggered this decision
-    trigger_type: AgentDecisionTrigger = Field(
-        default=AgentDecisionTrigger.AUTONOMOUS,
-        sa_column=Column(
-            ENUM(AgentDecisionTrigger, name="agent_decision_trigger", create_constraint=True),
-            nullable=False,
-            default=AgentDecisionTrigger.AUTONOMOUS,
-        ),
-    )
-    trigger_tweet_id: Optional[str] = Field(
-        default=None,
-        sa_column=Column(String(100), ForeignKey("x_tweets.tweet_id"), nullable=True),
-    )
-
-    # The decision
-    action: AgentAction = Field(
-        sa_column=Column(
-            ENUM(AgentAction, name="agent_action", create_constraint=True), nullable=False
-        )
-    )
-    ticker: Optional[str] = Field(
-        default=None, sa_column=Column(String(50), nullable=True, index=True)
-    )
-    quantity: Optional[int] = Field(default=None, sa_column=Column(Integer, nullable=True))
-    reasoning: Optional[str] = Field(default=None, sa_column=Column(String(2000), nullable=True))
-
-    # Execution (for trade actions)
-    order_id: Optional[uuid.UUID] = Field(
-        default=None,
-        sa_column=Column(PGUUID(as_uuid=True), ForeignKey("orders.order_id"), nullable=True),
-    )
-    executed: bool = Field(default=False, sa_column=Column(Boolean, default=False))
-
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), server_default=func.now(), index=True),
-    )
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now()),
-    )
-
-    # Relationships
-    agent: Optional[AIAgent] = Relationship(back_populates="decisions")
-    thoughts: List["AgentThought"] = Relationship(back_populates="decision", cascade_delete=True)
 
     class Config:
         arbitrary_types_allowed = True
@@ -147,12 +83,6 @@ class AgentThought(SQLModel, table=True):
         default_factory=uuid.uuid4,
         sa_column=Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4),
     )
-    decision_id: Optional[uuid.UUID] = Field(
-        default=None,
-        sa_column=Column(
-            PGUUID(as_uuid=True), ForeignKey("agent_decisions.decision_id"), nullable=True
-        ),
-    )
     agent_id: uuid.UUID = Field(
         sa_column=Column(PGUUID(as_uuid=True), ForeignKey("ai_agents.agent_id"), nullable=False)
     )
@@ -164,7 +94,15 @@ class AgentThought(SQLModel, table=True):
             nullable=False,
         )
     )
-    content: str = Field(sa_column=Column(String(2000), nullable=False))
+    content: str = Field(sa_column=Column(String, nullable=False))
+    tool_name: Optional[AgentToolName] = Field(
+        sa_column=Column(
+            ENUM(AgentToolName, name="agent_tool_name", create_constraint=True),
+            nullable=True,
+        )
+    )
+    tool_args: Optional[str] = Field(sa_column=Column(String, nullable=True))
+    tool_result: Optional[str] = Field(sa_column=Column(String, nullable=True))
 
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
@@ -174,9 +112,6 @@ class AgentThought(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now()),
     )
-
-    # Relationship
-    decision: Optional[AgentDecision] = Relationship(back_populates="thoughts")
 
     class Config:
         arbitrary_types_allowed = True

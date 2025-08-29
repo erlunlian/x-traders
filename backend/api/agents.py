@@ -21,8 +21,7 @@ from models.schemas.agents import (
     AgentMemoryState,
     AgentStats,
     CreateAgentRequest,
-    DecisionDetail,
-    DecisionListResponse,
+    ThoughtListResponse,
     UpdateAgentRequest,
 )
 from services.agents.agent_manager import agent_manager
@@ -241,14 +240,14 @@ async def get_agent_stats(agent_id: UUID) -> AgentStats:
         return stats
 
 
-@router.get("/{agent_id}/decisions", response_model=DecisionListResponse)
-async def get_agent_decisions(
+@router.get("/{agent_id}/thoughts", response_model=ThoughtListResponse)
+async def get_agent_thoughts(
     agent_id: UUID,
     limit: int = 50,
     offset: int = 0,
-) -> DecisionListResponse:
+) -> ThoughtListResponse:
     """
-    Get decision history for an agent.
+    Get thought history for an agent.
     """
     async with async_session() as session:
         agent_repo = AgentRepository(session)
@@ -258,39 +257,20 @@ async def get_agent_decisions(
         if not agent:
             raise HTTPException(status_code=404, detail=f"Agent not found: {agent_id}")
 
-        decisions = await agent_repo.list_agent_decisions(
+        thoughts = await agent_repo.list_agent_thoughts(
             agent_id=agent_id,
             limit=limit,
             offset=offset,
         )
 
-        return DecisionListResponse(
-            decisions=decisions,
-            total=len(decisions),
+        return ThoughtListResponse(
+            thoughts=thoughts,
+            total=len(thoughts),
             limit=limit,
             offset=offset,
         )
 
 
-@router.get("/{agent_id}/decisions/{decision_id}", response_model=DecisionDetail)
-async def get_decision_detail(agent_id: UUID, decision_id: UUID) -> DecisionDetail:
-    """
-    Get detailed information about a specific decision including thought trail.
-    """
-    async with async_session() as session:
-        agent_repo = AgentRepository(session)
-
-        decision = await agent_repo.get_decision(decision_id)
-        if not decision:
-            raise HTTPException(status_code=404, detail=f"Decision not found: {decision_id}")
-
-        if decision.agent_id != agent_id:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Decision {decision_id} does not belong to agent {agent_id}",
-            )
-
-        return decision
 
 
 @router.get("/{agent_id}/memory", response_model=AgentMemoryState)
@@ -308,6 +288,8 @@ async def get_agent_memory(agent_id: UUID) -> AgentMemoryState:
 
         memory_state = await agent_repo.get_agent_memory(agent_id)
         return memory_state
+
+
 
 
 @router.post("/{agent_id}/toggle", response_model=Agent)

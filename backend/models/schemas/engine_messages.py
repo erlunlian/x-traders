@@ -1,7 +1,8 @@
 from uuid import UUID
 
-from enums import CancelReason, MessageType
 from pydantic import BaseModel
+
+from enums import CancelReason, MessageType
 
 
 class OrderMessage(BaseModel):

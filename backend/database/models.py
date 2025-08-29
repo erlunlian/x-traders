@@ -3,7 +3,7 @@ Database models re-exported from separate model files
 """
 
 # Agent models
-from database.models_agents import AgentDecision, AgentMemory, AgentThought, AIAgent
+from database.models_agents import AgentMemory, AgentThought, AIAgent
 
 # Market data models
 from database.models_market import MarketDataOutbox
@@ -34,7 +34,6 @@ __all__ = [
     "XTweet",
     # Agents
     "AIAgent",
-    "AgentDecision",
     "AgentThought",
     "AgentMemory",
     # Market

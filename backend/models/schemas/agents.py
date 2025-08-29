@@ -3,12 +3,19 @@ Pydantic schemas for AI agents
 """
 
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional, Union
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from enums import AgentAction, AgentDecisionTrigger, AgentMemoryType, AgentThoughtType, LLMModel
+from enums import (
+    AgentAction,
+    AgentDecisionTrigger,
+    AgentMemoryType,
+    AgentThoughtType,
+    AgentToolName,
+    LLMModel,
+)
 
 
 # Request models
@@ -49,46 +56,18 @@ class Agent(BaseModel):
     last_processed_tweet_at: Optional[datetime] = None
 
 
-class AgentThought(BaseModel):
-    """Internal thought representation for agent state tracking"""
-
-    agent_id: UUID
-    step_number: int
-    thought_type: AgentThoughtType
-    content: str
-
-
 class ThoughtInfo(BaseModel):
-    """Individual thought in decision process"""
+    """Agent thought information for API responses"""
 
     thought_id: UUID
+    agent_id: UUID
     step_number: int
     thought_type: AgentThoughtType
     content: str
+    tool_name: Optional[AgentToolName]
+    tool_args: Optional[str]
+    tool_result: Optional[str]
     created_at: datetime
-
-
-class DecisionInfo(BaseModel):
-    """Agent decision information"""
-
-    decision_id: UUID
-    agent_id: UUID
-    trigger_type: AgentDecisionTrigger
-    trigger_tweet_id: Optional[str]
-    action: AgentAction
-    ticker: Optional[str]
-    quantity: Optional[int]
-    reasoning: Optional[str]
-    order_id: Optional[UUID]
-    executed: bool
-    created_at: datetime
-
-
-class DecisionDetail(DecisionInfo):
-    """Decision with full thought trail"""
-
-    agent_name: str
-    thoughts: List[ThoughtInfo]
 
 
 class MemoryInfo(BaseModel):
@@ -117,12 +96,9 @@ class AgentStats(BaseModel):
     name: str
     llm_model: LLMModel
     is_active: bool
-    total_decisions: int
-    last_decision_at: Optional[datetime]
-    action_breakdown: Dict[str, int]
-    trade_decisions: int
-    executed_trades: int
-    execution_rate: float
+    total_thoughts: int
+    thought_breakdown: Dict[str, int]
+    last_activity_at: Optional[datetime]
 
 
 class AgentLeaderboardEntry(BaseModel):
@@ -156,35 +132,13 @@ class AgentListResponse(BaseModel):
     total: int
 
 
-class DecisionListResponse(BaseModel):
-    """List of decisions"""
+class ThoughtListResponse(BaseModel):
+    """List of agent thoughts"""
 
-    decisions: List[DecisionDetail]
+    thoughts: List[ThoughtInfo]
     total: int
     offset: int
     limit: int
-
-
-# Event models for real-time streaming
-class AgentThoughtEvent(BaseModel):
-    """Real-time thought event"""
-
-    event_type: str = "thought"
-    agent_id: UUID
-    agent_name: str
-    decision_id: UUID
-    thought: ThoughtInfo
-    timestamp: datetime
-
-
-class AgentDecisionEvent(BaseModel):
-    """Real-time decision event"""
-
-    event_type: str = "decision"
-    agent_id: UUID
-    agent_name: str
-    decision: DecisionDetail
-    timestamp: datetime
 
 
 class AgentStatusEvent(BaseModel):
@@ -195,3 +149,46 @@ class AgentStatusEvent(BaseModel):
     agent_name: str
     status: str  # "thinking", "executing", "resting", "idle"
     timestamp: datetime
+
+
+# Activity models for unified timeline
+class ActivityItem(BaseModel):
+    """Base class for activity items"""
+
+    activity_type: str
+    created_at: datetime
+    agent_id: UUID
+
+
+class ThoughtActivity(ActivityItem):
+    """Thought activity item"""
+
+    activity_type: Literal["thought"] = "thought"
+    thought_id: UUID
+    step_number: int
+    thought_type: AgentThoughtType
+    content: str
+
+
+class DecisionActivity(ActivityItem):
+    """Decision activity item"""
+
+    activity_type: Literal["decision"] = "decision"
+    decision_id: UUID
+    trigger_type: AgentDecisionTrigger
+    trigger_tweet_id: Optional[str]
+    action: AgentAction
+    ticker: Optional[str]
+    quantity: Optional[int]
+    reasoning: Optional[str]
+    order_id: Optional[UUID]
+    executed: bool
+
+
+class AgentActivityResponse(BaseModel):
+    """Response for agent activity endpoint"""
+
+    activities: List[Union[ThoughtActivity, DecisionActivity]]
+    total: int
+    offset: int
+    limit: int

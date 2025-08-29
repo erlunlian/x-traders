@@ -8,29 +8,18 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from langchain_core.messages import (
-    AIMessage,
-    BaseMessage,
-    HumanMessage,
-    SystemMessage,
-    ToolMessage,
-)
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, Field
 
-from enums import AgentAction, AgentDecisionTrigger, AgentThoughtType
-from models.schemas.agents import Agent, AgentThought
+from enums import AgentThoughtType, AgentToolName
+from models.schemas.agents import Agent, ThoughtInfo
 from models.schemas.tweet_feed import TweetForAgent
-from services.agents.agent_tools import (
-    get_trading_tools,
-    get_utility_tools,
-    get_x_data_tools,
-)
+from services.agents.agent_tools import get_trading_tools, get_utility_tools, get_x_data_tools
 from services.agents.db_utils import (
+    create_thought_safe,
     get_agent_safe,
     get_tweets_safe,
-    record_decision_safe,
-    save_orphan_thoughts_safe,
     update_last_processed_tweet_safe,
 )
 from services.agents.memory_manager import MemoryManager
@@ -43,7 +32,7 @@ class AgentState(BaseModel):
 
     agent_id: UUID
     messages: List[BaseMessage] = Field(default_factory=list)
-    thoughts: List[AgentThought] = Field(default_factory=list)  # For database storage
+    thoughts: List[ThoughtInfo] = Field(default_factory=list)  # For database storage
     pending_tweets: List[TweetForAgent] = Field(default_factory=list)
     pending_tool_calls: List = Field(default_factory=list)  # Tool calls from LLM
     memory_context: str = ""
@@ -58,6 +47,7 @@ class AutonomousAgent:
 
     def __init__(self, agent: Agent):
         self.agent = agent
+        self.trader_id = str(self.agent.trader_id)  # Store trader_id as string for tools
         self.llm = create_llm(self.agent.llm_model, self.agent.temperature)
         self.memory_manager = MemoryManager(
             agent=agent,
@@ -69,7 +59,8 @@ class AutonomousAgent:
 
     def _get_all_tools(self) -> List:
         """Get all available tools as StructuredTool objects"""
-        trading_tools = get_trading_tools()
+        # Pass trader_id to get wrapped tools that don't require trader_id parameter
+        trading_tools = get_trading_tools(trader_id=self.trader_id)
         x_data_tools = get_x_data_tools()
         utility_tools = get_utility_tools()
 
@@ -90,7 +81,6 @@ class AutonomousAgent:
         graph.add_node("check_active", self.check_active_node)
         graph.add_node("think", self.think_node)
         graph.add_node("execute_tools", self.execute_tools_node)
-        graph.add_node("save_thoughts", self.save_thoughts_node)
 
         # Set entry point
         graph.set_entry_point("check_active")
@@ -110,12 +100,11 @@ class AutonomousAgent:
             self.route_from_think,
             {
                 "execute": "execute_tools",
-                "save": "save_thoughts",
+                "think_again": "think",  # Loop back to think if no tool calls
             },
         )
 
-        graph.add_edge("execute_tools", "save_thoughts")
-        graph.add_edge("save_thoughts", "check_active")
+        graph.add_edge("execute_tools", "check_active")
 
         return graph
 
@@ -139,18 +128,14 @@ class AutonomousAgent:
             if state.pending_tweets:
                 # Update last processed timestamp in isolated transaction
                 latest_timestamp = max(t.fetched_at for t in state.pending_tweets)
-                await update_last_processed_tweet_safe(
-                    self.agent.agent_id, latest_timestamp
-                )
+                await update_last_processed_tweet_safe(self.agent.agent_id, latest_timestamp)
 
         return state
 
-    async def think_node(self, state: AgentState) -> AgentState:
-        """Main thinking/decision node using native tool calling"""
+    async def append_think_context_to_state_messages(self, state: AgentState) -> str:
+        """Build the context for the think node"""
         # Get memory context
-        state.memory_context = (
-            await self.memory_manager.get_formatted_memory_for_prompt()
-        )
+        state.memory_context = await self.memory_manager.get_formatted_memory_for_prompt()
 
         # Build context
         context = f"""
@@ -162,14 +147,11 @@ Cycle: {state.cycle_count}
         if state.pending_tweets:
             context += f"\nNew tweets detected: {len(state.pending_tweets)} tweets"
             # Show first few tweets
-            for tweet in state.pending_tweets[:3]:
-                context += f"\n- @{tweet.author_username}: {tweet.text[:100]}..."
+            for tweet in state.pending_tweets:
+                context += f"\n- @{tweet.author_username}: {tweet.text}"
 
         if state.error_context:
             context += f"\n\nPrevious errors:\n{state.error_context}"
-
-        # Bind tools to the LLM for native tool calling
-        llm_with_tools = self.llm.bind_tools(self.tools_list)
 
         # Build messages - use existing messages or start fresh
         if not state.messages:
@@ -183,28 +165,37 @@ Cycle: {state.cycle_count}
             # Add new context as a message
             state.messages.append(HumanMessage(content=context))
 
+    async def think_node(self, state: AgentState) -> AgentState:
+        """Main thinking/decision node using native tool calling"""
+        # set context for think node
+        await self.append_think_context_to_state_messages(state)
+
+        # Bind tools to the LLM for native tool calling
+        llm_with_tools = self.llm.bind_tools(self.tools_list)
+
         # Get response with potential tool calls
         response = await llm_with_tools.ainvoke(state.messages)
 
-        # Store the AI message in state
+        # Store the full AI response in state (includes tool calls)
         state.messages.append(response)
 
         # Extract tool calls if any
-        if hasattr(response, "tool_calls") and response.tool_calls:
-            state.pending_tool_calls = response.tool_calls
-        else:
-            state.pending_tool_calls = []
+        state.pending_tool_calls = (
+            response.tool_calls if hasattr(response, "tool_calls") and response.tool_calls else []
+        )
 
         # Store reasoning if present
         if response.content:
-            # Create thought for database storage
-            thought = AgentThought(
-                agent_id=self.agent.agent_id,
+            thought_info = await create_thought_safe(
+                agent_id=state.agent_id,
                 step_number=state.cycle_count,
                 thought_type=AgentThoughtType.THINKING,
-                content=response.content[:2000],  # Limit to field size
+                content=response.content,
+                tool_name=None,  # No tool for thinking thoughts
+                tool_args=None,  # No tool args
+                tool_result=None,  # No tool result
             )
-            state.thoughts.append(thought)
+            state.thoughts.append(thought_info)
 
         return state
 
@@ -217,10 +208,6 @@ Cycle: {state.cycle_count}
             tool_name = tool_call["name"]
             tool_id = tool_call["id"]
             arguments = tool_call["args"]
-
-            # Add trader_id for tools that need it
-            if tool_name in ["buy_stock", "sell_stock", "check_portfolio"]:
-                arguments["trader_id"] = str(self.agent.trader_id)
 
             try:
                 if tool_name not in self.tools_map:
@@ -246,65 +233,17 @@ Cycle: {state.cycle_count}
                 )
                 state.messages.append(tool_message)
 
-                # Record trading decisions with repository
-                if tool_name in ["buy_stock", "sell_stock"]:
-                    # Parse result to check if successful
-                    result_dict = (
-                        json.loads(result_str)
-                        if isinstance(result_str, str)
-                        else result_str
-                    )
-                    action = (
-                        AgentAction.BUY
-                        if tool_name == "buy_stock"
-                        else AgentAction.SELL
-                    )
-                    success = (
-                        result_dict.get("success", False)
-                        if isinstance(result_dict, dict)
-                        else False
-                    )
-                    order_id = (
-                        result_dict.get("order_id")
-                        if success and isinstance(result_dict, dict)
-                        else None
-                    )
-
-                    # Determine trigger type
-                    trigger_type = (
-                        AgentDecisionTrigger.TWEET
-                        if state.pending_tweets
-                        else AgentDecisionTrigger.AUTONOMOUS
-                    )
-                    trigger_tweet_id = (
-                        state.pending_tweets[0].tweet_id
-                        if state.pending_tweets
-                        else None
-                    )
-
-                    # Extract reasoning from recent messages
-                    reasoning = ""
-                    for msg in reversed(state.messages):
-                        if isinstance(msg, AIMessage) and msg.content:
-                            reasoning = msg.content[:500]
-                            break
-
-                    # Use isolated database operation for recording decision
-                    decision_id = await record_decision_safe(
-                        agent_id=self.agent.agent_id,
-                        trigger_type=trigger_type,
-                        action=action,
-                        thoughts=[
-                            (t.thought_type, t.content) for t in state.thoughts[-5:]
-                        ],
-                        ticker=arguments.get("ticker"),
-                        quantity=arguments.get("quantity"),
-                        reasoning=reasoning,
-                        trigger_tweet_id=trigger_tweet_id,
-                        order_id=UUID(order_id) if order_id else None,
-                        executed=success,
-                    )
-                    state.last_decision_id = decision_id
+                # Record all tool calls as thoughts
+                tool_thought = await create_thought_safe(
+                    agent_id=self.agent.agent_id,
+                    step_number=state.cycle_count,
+                    thought_type=AgentThoughtType.TOOL_CALL,
+                    content="",
+                    tool_name=AgentToolName(tool_name),
+                    tool_args=json.dumps(arguments, default=str),
+                    tool_result=result_str,
+                )
+                state.thoughts.append(tool_thought)
 
             except Exception as e:
                 # Create error message as ToolMessage
@@ -315,36 +254,19 @@ Cycle: {state.cycle_count}
                 state.messages.append(error_message)
 
                 # Log error as thought
-                thought = AgentThought(
+                error_thought = await create_thought_safe(
                     agent_id=self.agent.agent_id,
                     step_number=state.cycle_count,
-                    thought_type=AgentThoughtType.DECIDING,
-                    content=f"Error with {tool_name}: {str(e)[:500]}",
+                    thought_type=AgentThoughtType.ERROR,
+                    content=f"Error with {tool_name}: {str(e)}",
+                    tool_name=AgentToolName(tool_name),
+                    tool_args=json.dumps(arguments, default=str),
+                    tool_result=f"Error with {tool_name}: {str(e)}",
                 )
-                state.thoughts.append(thought)
+                state.thoughts.append(error_thought)
 
         # Clear pending tool calls after processing
         state.pending_tool_calls = []
-
-        return state
-
-    async def save_thoughts_node(self, state: AgentState) -> AgentState:
-        """Save thoughts to database using repository and compress memory if needed"""
-        if state.thoughts:
-            # If we have a current decision, thoughts are already saved with it
-            if not state.last_decision_id:
-                # Save orphan thoughts using isolated database operation
-                await save_orphan_thoughts_safe(
-                    agent_id=self.agent.agent_id,
-                    thoughts=state.thoughts[-10:]  # Save last 10 thoughts
-                )
-
-            # Compress memory if needed
-            if await self.memory_manager.should_compress():
-                await self.memory_manager.compress_memory()
-
-            # Keep only recent thoughts in state
-            state.thoughts = state.thoughts[-5:]
 
         return state
 
@@ -354,12 +276,13 @@ Cycle: {state.cycle_count}
             return END
         return "continue"
 
-    def route_from_think(self, state: AgentState) -> str :
+    def route_from_think(self, state: AgentState) -> str:
         """Route from think node based on whether there are tool calls"""
+        # TODO add check to compact memory if it reaches 80% of max tokens for the agent's model
         if state.pending_tool_calls:
             return "execute"
         else:
-            return "save"
+            return "think_again"  # Loop back to think
 
     async def run_forever(self):
         """Main execution loop"""

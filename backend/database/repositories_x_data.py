@@ -1,7 +1,9 @@
 """
 Repository for X/Twitter data caching operations.
 """
+
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import List, Optional
 
 from sqlalchemy.dialects.postgresql import insert
@@ -11,6 +13,18 @@ from sqlmodel import asc, desc, select
 from database.models import XTweet, XUser
 from models.schemas.tweet_feed import TweetForAgent
 from models.schemas.x_api import TweetInfo, UserInfo
+
+
+def parse_twitter_date(date_str: str) -> datetime:
+    """Parse Twitter's date format to datetime.
+    Twitter format: 'Wed Jun 25 22:21:48 +0000 2025'
+    """
+    try:
+        # Use email.utils.parsedate_to_datetime which handles this format well
+        return parsedate_to_datetime(date_str)
+    except (ValueError, TypeError):
+        # Fallback to current time if parsing fails
+        return datetime.now(timezone.utc)
 
 
 class XDataRepository:
@@ -48,6 +62,7 @@ class XDataRepository:
             location=user.location,
             num_followers=user.num_followers,  # type: ignore[call-arg]
             num_following=user.num_following,  # type: ignore[call-arg]
+            fetched_at=user.fetched_at,
         )
 
     async def upsert_user_without_commit(self, user_info: UserInfo) -> UserInfo:
@@ -84,9 +99,7 @@ class XDataRepository:
         user = result.scalar_one()
         return self._db_user_to_user_info(user)
 
-    async def upsert_tweet_without_commit(
-        self, tweet: TweetInfo, author_username: str
-    ) -> XTweet:
+    async def upsert_tweet_without_commit(self, tweet: TweetInfo, author_username: str) -> XTweet:
         """
         Insert or update tweet in cache.
         Must be called within a transaction context - does NOT commit.
@@ -119,7 +132,7 @@ class XDataRepository:
                 quoted_tweet_id=tweet.quoted_tweet_id,
                 retweeted_tweet_id=tweet.retweeted_tweet_id,
                 entities=entities_dict,
-                tweet_created_at=tweet.created_at,
+                tweet_created_at=parse_twitter_date(tweet.created_at),
                 fetched_at=datetime.now(timezone.utc),
             )
             .on_conflict_do_update(
@@ -150,22 +163,16 @@ class XDataRepository:
 
     async def get_user_or_none(self, username: str) -> Optional[UserInfo]:
         """Get cached user by username - returns None if not found"""
-        result = await self.session.execute(
-            select(XUser).where(XUser.username == username)
-        )
+        result = await self.session.execute(select(XUser).where(XUser.username == username))
         user = result.scalar_one_or_none()
         return self._db_user_to_user_info(user) if user else None
 
     async def get_tweet_or_none(self, tweet_id: str) -> Optional[XTweet]:
         """Get cached tweet by ID - returns None if not found"""
-        result = await self.session.execute(
-            select(XTweet).where(XTweet.tweet_id == tweet_id)
-        )
+        result = await self.session.execute(select(XTweet).where(XTweet.tweet_id == tweet_id))
         return result.scalar_one_or_none()
 
-    async def get_tweets_by_username(
-        self, username: str, limit: int = 20
-    ) -> List[XTweet]:
+    async def get_tweets_by_username(self, username: str, limit: int = 20) -> List[XTweet]:
         """
         Get cached tweets for a user, ordered by tweet creation time (newest first).
 
@@ -260,9 +267,7 @@ class XDataRepository:
                     "is_reply": insert(XTweet).excluded.is_reply,
                     "reply_to_tweet_id": insert(XTweet).excluded.reply_to_tweet_id,
                     "conversation_id": insert(XTweet).excluded.conversation_id,
-                    "in_reply_to_username": insert(
-                        XTweet
-                    ).excluded.in_reply_to_username,
+                    "in_reply_to_username": insert(XTweet).excluded.in_reply_to_username,
                     "quoted_tweet_id": insert(XTweet).excluded.quoted_tweet_id,
                     "retweeted_tweet_id": insert(XTweet).excluded.retweeted_tweet_id,
                     "entities": insert(XTweet).excluded.entities,
@@ -293,9 +298,7 @@ class XDataRepository:
         Returns:
             List of all cached tweets
         """
-        result = await self.session.execute(
-            select(XTweet).order_by(desc(XTweet.tweet_created_at))
-        )
+        result = await self.session.execute(select(XTweet).order_by(desc(XTweet.tweet_created_at)))
         return list(result.scalars().all())
 
     async def get_tweets_after_timestamp(

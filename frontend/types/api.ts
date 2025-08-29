@@ -56,39 +56,25 @@ export interface Agent {
 
 export interface AgentThought {
   thought_id: string;
+  agent_id: string;
   step_number: number;
   thought_type: string;
   content: string;
+  tool_name?: string | null;
+  tool_args?: string | null;
+  tool_result?: string | null;
   created_at: string;
 }
 
-export interface AgentDecision {
-  decision_id: string;
-  agent_id: string;
-  agent_name?: string;
-  trigger_type: string;
-  trigger_tweet_id: string | null;
-  action: string;
-  ticker: string | null;
-  quantity: number | null;
-  reasoning: string | null;
-  order_id: string | null;
-  executed: boolean;
-  created_at: string;
-  thoughts?: AgentThought[];
-}
 
 export interface AgentStats {
   agent_id: string;
   name: string;
   llm_model: string;
   is_active: boolean;
-  total_decisions: number;
-  last_decision_at: string | null;
-  action_breakdown: Record<string, number>;
-  trade_decisions: number;
-  executed_trades: number;
-  execution_rate: number;
+  total_thoughts: number;
+  thought_breakdown: Record<string, number>;
+  last_activity_at: string | null;
 }
 
 export interface MemoryInfo {
@@ -103,6 +89,13 @@ export interface AgentMemoryState {
   working_memory: MemoryInfo | null;
   insights: MemoryInfo[];
   total_insights: number;
+}
+
+export interface ThoughtListResponse {
+  thoughts: AgentThought[];
+  total: number;
+  offset: number;
+  limit: number;
 }
 
 export interface AgentLeaderboardEntry {

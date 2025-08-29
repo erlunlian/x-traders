@@ -220,6 +220,21 @@ class BackupService:
         """Load backup from JSON file"""
         with open(filepath, "r", encoding="utf-8") as f:
             data = json.load(f)
+            # Convert string dates to datetime for tweets if needed
+            if "tweets" in data:
+                for tweet in data["tweets"]:
+                    if "tweet_created_at" in tweet and isinstance(tweet["tweet_created_at"], str):
+                        # Parse Twitter date format or ISO format
+                        from email.utils import parsedate_to_datetime
+                        try:
+                            tweet["tweet_created_at"] = parsedate_to_datetime(tweet["tweet_created_at"])
+                        except (ValueError, TypeError):
+                            # Try ISO format as fallback
+                            try:
+                                tweet["tweet_created_at"] = datetime.fromisoformat(tweet["tweet_created_at"].replace("Z", "+00:00"))
+                            except (ValueError, TypeError):
+                                # Use current time as last resort
+                                tweet["tweet_created_at"] = datetime.now(timezone.utc)
             return TweetBackup(**data)
 
     def get_latest_backup(self) -> Optional[TweetBackup]:

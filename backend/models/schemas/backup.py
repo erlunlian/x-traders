@@ -50,7 +50,7 @@ class BackupTweet(BaseModel):
     quoted_tweet_id: Optional[str] = None
     retweeted_tweet_id: Optional[str] = None
     entities: Optional[dict] = None
-    tweet_created_at: str
+    tweet_created_at: datetime
     fetched_at: datetime
 
 

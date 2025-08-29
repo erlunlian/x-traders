@@ -1,12 +1,24 @@
 """
 Trading-related SQLModel database models
 """
+
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import BIGINT, Boolean, CheckConstraint, Column, DateTime, ForeignKey, Integer, String, func
-from sqlalchemy.dialects.postgresql import ENUM, UUID as PGUUID
+from sqlalchemy import (
+    BIGINT,
+    Boolean,
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    func,
+)
+from sqlalchemy.dialects.postgresql import ENUM
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlmodel import Field, SQLModel
 
 from enums import CancelReason, OrderStatus, OrderType, Side
@@ -14,6 +26,7 @@ from enums import CancelReason, OrderStatus, OrderType, Side
 
 class Order(SQLModel, table=True):
     """Order model"""
+
     __tablename__ = "orders"
 
     order_id: uuid.UUID = Field(
@@ -22,7 +35,9 @@ class Order(SQLModel, table=True):
     )
     trader_id: uuid.UUID = Field(sa_column=Column(PGUUID(as_uuid=True), nullable=False, index=True))
     ticker: str = Field(sa_column=Column(String(50), nullable=False, index=True))
-    side: Side = Field(sa_column=Column(ENUM(Side, name="order_side", create_constraint=True), nullable=False))
+    side: Side = Field(
+        sa_column=Column(ENUM(Side, name="order_side", create_constraint=True), nullable=False)
+    )
     order_type: OrderType = Field(
         sa_column=Column(ENUM(OrderType, name="order_type", create_constraint=True), nullable=False)
     )
@@ -38,7 +53,9 @@ class Order(SQLModel, table=True):
     )
     cancel_reason: Optional[CancelReason] = Field(
         default=None,
-        sa_column=Column(ENUM(CancelReason, name="cancel_reason", create_constraint=True), nullable=True),
+        sa_column=Column(
+            ENUM(CancelReason, name="cancel_reason", create_constraint=True), nullable=True
+        ),
     )
     sequence: int = Field(sa_column=Column(Integer, nullable=False))
     tif_seconds: int = Field(default=86400, sa_column=Column(Integer, default=86400))
@@ -58,6 +75,7 @@ class Order(SQLModel, table=True):
 
 class Trade(SQLModel, table=True):
     """Trade execution record"""
+
     __tablename__ = "trades"
 
     trade_id: uuid.UUID = Field(
@@ -93,6 +111,7 @@ class Trade(SQLModel, table=True):
 
 class Position(SQLModel, table=True):
     """Position tracking"""
+
     __tablename__ = "positions"
 
     trader_id: uuid.UUID = Field(sa_column=Column(PGUUID(as_uuid=True), primary_key=True))
@@ -116,6 +135,7 @@ class Position(SQLModel, table=True):
 
 class LedgerEntry(SQLModel, table=True):
     """Double-entry bookkeeping ledger"""
+
     __tablename__ = "ledger_entries"
 
     entry_id: uuid.UUID = Field(
@@ -142,6 +162,7 @@ class LedgerEntry(SQLModel, table=True):
 
 class SequenceCounter(SQLModel, table=True):
     """Sequence counter for order IDs"""
+
     __tablename__ = "sequence_counters"
 
     ticker: str = Field(sa_column=Column(String(50), primary_key=True))
@@ -153,6 +174,7 @@ class SequenceCounter(SQLModel, table=True):
 
 class TraderAccount(SQLModel, table=True):
     """Trader account"""
+
     __tablename__ = "trader_accounts"
 
     trader_id: uuid.UUID = Field(

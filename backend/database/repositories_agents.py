@@ -1,6 +1,7 @@
 """
 Repository for AI agent operations.
 """
+
 from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
@@ -8,23 +9,9 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import and_, desc, func, select
 
-from database.models import AgentDecision, AgentMemory, AgentThought, AIAgent
-from enums import (
-    AgentAction,
-    AgentDecisionTrigger,
-    AgentMemoryType,
-    AgentThoughtType,
-    LLMModel,
-)
-from models.schemas.agents import (
-    Agent,
-    AgentMemoryState,
-    AgentStats,
-    DecisionDetail,
-    DecisionInfo,
-    MemoryInfo,
-    ThoughtInfo,
-)
+from database.models import AgentMemory, AgentThought, AIAgent
+from enums import AgentMemoryType, AgentThoughtType, AgentToolName, LLMModel
+from models.schemas.agents import Agent, AgentMemoryState, AgentStats, MemoryInfo, ThoughtInfo
 
 
 class AgentRepository:
@@ -35,16 +22,12 @@ class AgentRepository:
 
     async def _get_db_agent(self, agent_id: UUID) -> AIAgent:
         """Get agent database model - internal use only"""
-        result = await self.session.execute(
-            select(AIAgent).where(AIAgent.agent_id == agent_id)
-        )
+        result = await self.session.execute(select(AIAgent).where(AIAgent.agent_id == agent_id))
         return result.scalar_one()
 
     async def _get_db_agent_or_none(self, agent_id: UUID) -> Optional[AIAgent]:
         """Get agent database model or None - internal use only"""
-        result = await self.session.execute(
-            select(AIAgent).where(AIAgent.agent_id == agent_id)
-        )
+        result = await self.session.execute(select(AIAgent).where(AIAgent.agent_id == agent_id))
         return result.scalar_one_or_none()
 
     async def get_agent(self, agent_id: UUID) -> Agent:
@@ -60,9 +43,7 @@ class AgentRepository:
 
     async def get_agent_or_none(self, agent_id: UUID) -> Optional[Agent]:
         """Get agent database record or None if not found"""
-        result = await self.session.execute(
-            select(AIAgent).where(AIAgent.agent_id == agent_id)
-        )
+        result = await self.session.execute(select(AIAgent).where(AIAgent.agent_id == agent_id))
         agent = result.scalar_one_or_none()
         return self._db_to_agent(agent) if agent else None
 
@@ -160,198 +141,6 @@ class AgentRepository:
 
         return self._db_to_agent(agent_db)
 
-    async def record_decision_without_commit(
-        self,
-        agent_id: UUID,
-        trigger_type: AgentDecisionTrigger,
-        action: AgentAction,
-        thoughts: List[tuple[AgentThoughtType, str]],  # (type, content) pairs
-        ticker: Optional[str] = None,
-        quantity: Optional[int] = None,
-        reasoning: Optional[str] = None,
-        trigger_tweet_id: Optional[str] = None,
-        order_id: Optional[UUID] = None,
-        executed: bool = False,
-    ) -> DecisionDetail:
-        """Record an agent decision with thought trail"""
-        # Get agent for name
-        agent_db = await self._get_db_agent_or_none(agent_id)
-        if not agent_db:
-            raise ValueError(f"Agent {agent_id} not found")
-
-        # Create decision record
-        decision = AgentDecision(
-            agent_id=agent_id,
-            trigger_type=trigger_type,
-            trigger_tweet_id=trigger_tweet_id,
-            action=action,
-            ticker=ticker,
-            quantity=quantity,
-            reasoning=reasoning,
-            order_id=order_id,
-            executed=executed,
-        )
-        self.session.add(decision)
-        await self.session.flush()
-
-        # Create thought records
-        thought_records = []
-        for i, (thought_type, content) in enumerate(thoughts):
-            thought = AgentThought(
-                decision_id=decision.decision_id,
-                agent_id=agent_id,
-                step_number=i + 1,
-                thought_type=thought_type,
-                content=content,
-            )
-            self.session.add(thought)
-            thought_records.append(thought)
-
-        await self.session.flush()
-
-        # Update agent stats
-        agent_db.total_decisions += 1
-        agent_db.last_decision_at = decision.created_at
-        await self.session.flush()
-
-        return DecisionDetail(
-            decision_id=decision.decision_id,
-            agent_id=decision.agent_id,
-            agent_name=agent_db.name,
-            trigger_type=decision.trigger_type,
-            trigger_tweet_id=decision.trigger_tweet_id,
-            action=decision.action,
-            ticker=decision.ticker,
-            quantity=decision.quantity,
-            reasoning=decision.reasoning,
-            order_id=decision.order_id,
-            executed=decision.executed,
-            created_at=decision.created_at,
-            thoughts=[
-                ThoughtInfo(
-                    thought_id=t.thought_id,
-                    step_number=t.step_number,
-                    thought_type=t.thought_type,
-                    content=t.content,
-                    created_at=t.created_at,
-                )
-                for t in thought_records
-            ],
-        )
-
-    async def get_decision(self, decision_id: UUID) -> Optional[DecisionDetail]:
-        """Get decision with full thought trail"""
-        # Get decision with agent info
-        result = await self.session.execute(
-            select(AgentDecision)
-            .join(AIAgent)
-            .where(AgentDecision.decision_id == decision_id)
-        )
-        decision = result.scalar_one_or_none()
-
-        if not decision:
-            return None
-
-        # Get thoughts separately to avoid cartesian product
-        thoughts_result = await self.session.execute(
-            select(AgentThought)
-            .where(AgentThought.decision_id == decision_id)
-            .order_by(AgentThought.step_number)
-        )
-        thoughts = list(thoughts_result.scalars().all())
-
-        return DecisionDetail(
-            decision_id=decision.decision_id,
-            agent_id=decision.agent_id,
-            agent_name=decision.agent.name if decision.agent else "Unknown",
-            trigger_type=decision.trigger_type,
-            trigger_tweet_id=decision.trigger_tweet_id,
-            action=decision.action,
-            ticker=decision.ticker,
-            quantity=decision.quantity,
-            reasoning=decision.reasoning,
-            order_id=decision.order_id,
-            executed=decision.executed,
-            created_at=decision.created_at,
-            thoughts=[
-                ThoughtInfo(
-                    thought_id=t.thought_id,
-                    step_number=t.step_number,
-                    thought_type=t.thought_type,
-                    content=t.content,
-                    created_at=t.created_at,
-                )
-                for t in thoughts
-            ],
-        )
-
-    async def list_agent_decisions(
-        self,
-        agent_id: UUID,
-        limit: int = 50,
-        offset: int = 0,
-    ) -> List[DecisionDetail]:
-        """List decisions for an agent with full thought trail"""
-        # Get decisions with agent info
-        query = (
-            select(AgentDecision)
-            .join(AIAgent)
-            .where(AgentDecision.agent_id == agent_id)
-            .order_by(desc(AgentDecision.created_at))
-            .limit(limit)
-            .offset(offset)
-        )
-
-        result = await self.session.execute(query)
-        decisions = result.scalars().all()
-
-        # Get all thoughts for these decisions in a single query
-        decision_ids = [d.decision_id for d in decisions]
-        if decision_ids:
-            thoughts_result = await self.session.execute(
-                select(AgentThought)
-                .where(AgentThought.decision_id.in_(decision_ids))
-                .order_by(AgentThought.decision_id, AgentThought.step_number)
-            )
-            all_thoughts = thoughts_result.scalars().all()
-        else:
-            all_thoughts = []
-
-        # Group thoughts by decision_id
-        thoughts_by_decision = {}
-        for thought in all_thoughts:
-            if thought.decision_id not in thoughts_by_decision:
-                thoughts_by_decision[thought.decision_id] = []
-            thoughts_by_decision[thought.decision_id].append(thought)
-
-        return [
-            DecisionDetail(
-                decision_id=d.decision_id,
-                agent_id=d.agent_id,
-                agent_name=d.agent.name if d.agent else "Unknown",
-                trigger_type=d.trigger_type,
-                trigger_tweet_id=d.trigger_tweet_id,
-                action=d.action,
-                ticker=d.ticker,
-                quantity=d.quantity,
-                reasoning=d.reasoning,
-                order_id=d.order_id,
-                executed=d.executed,
-                created_at=d.created_at,
-                thoughts=[
-                    ThoughtInfo(
-                        thought_id=t.thought_id,
-                        step_number=t.step_number,
-                        thought_type=t.thought_type,
-                        content=t.content,
-                        created_at=t.created_at,
-                    )
-                    for t in thoughts_by_decision.get(d.decision_id, [])
-                ],
-            )
-            for d in decisions
-        ]
-
     async def save_memory_without_commit(
         self,
         agent_id: UUID,
@@ -428,6 +217,41 @@ class AgentRepository:
             total_tokens=total_tokens,
         )
 
+    async def create_thought_without_commit(
+        self,
+        agent_id: UUID,
+        step_number: int,
+        thought_type: AgentThoughtType,
+        content: str,
+        tool_name: Optional[AgentToolName],
+        tool_args: Optional[str],
+        tool_result: Optional[str],
+    ) -> ThoughtInfo:
+        """Create a single thought and return ThoughtInfo with ID"""
+        thought = AgentThought(
+            agent_id=agent_id,
+            step_number=step_number,
+            thought_type=thought_type,
+            content=content,
+            tool_name=tool_name,
+            tool_args=tool_args,
+            tool_result=tool_result,
+        )
+        self.session.add(thought)
+        await self.session.flush()
+
+        return ThoughtInfo(
+            thought_id=thought.thought_id,
+            agent_id=thought.agent_id,
+            step_number=thought.step_number,
+            thought_type=thought.thought_type,
+            content=thought.content,
+            tool_name=thought.tool_name,
+            tool_args=thought.tool_args,
+            tool_result=thought.tool_result,
+            created_at=thought.created_at,
+        )
+
     async def get_agent_stats(self, agent_id: UUID) -> Optional[AgentStats]:
         """Get comprehensive agent statistics"""
         # Get agent
@@ -436,55 +260,32 @@ class AgentRepository:
         if not agent:
             return None
 
-        # Get action breakdown
-        action_counts = await self.session.execute(
+        # Get thought type breakdown
+        thought_counts = await self.session.execute(
             select(
-                AgentDecision.action,
-                func.count(AgentDecision.decision_id).label("count"),
+                AgentThought.thought_type,
+                func.count(AgentThought.thought_id).label("count"),
             )
-            .where(AgentDecision.agent_id == agent_id)
-            .group_by(AgentDecision.action)
+            .where(AgentThought.agent_id == agent_id)
+            .group_by(AgentThought.thought_type)
         )
 
-        action_breakdown = {row.action.value: row.count for row in action_counts}
+        thought_breakdown = {row.thought_type.value: row.count for row in thought_counts}
 
-        # Count trade decisions and executed trades
-        trade_decisions = await self.session.execute(
-            select(func.count(AgentDecision.decision_id)).where(
-                and_(
-                    AgentDecision.agent_id == agent_id,
-                    AgentDecision.action.in_([AgentAction.BUY, AgentAction.SELL]),
-                )
-            )
+        # Count total thoughts
+        total_thoughts = await self.session.execute(
+            select(func.count(AgentThought.thought_id)).where(AgentThought.agent_id == agent_id)
         )
-        trade_count = trade_decisions.scalar() or 0
-
-        executed_trades = await self.session.execute(
-            select(func.count(AgentDecision.decision_id)).where(
-                and_(
-                    AgentDecision.agent_id == agent_id,
-                    AgentDecision.action.in_([AgentAction.BUY, AgentAction.SELL]),
-                    AgentDecision.executed,
-                )
-            )
-        )
-        executed_count = executed_trades.scalar() or 0
-
-        execution_rate = (
-            (executed_count / trade_count * 100) if trade_count > 0 else 0.0
-        )
+        total_count = total_thoughts.scalar() or 0
 
         return AgentStats(
             agent_id=agent.agent_id,
             name=agent.name,
             llm_model=agent.llm_model,
             is_active=agent.is_active,
-            total_decisions=agent.total_decisions,
-            last_decision_at=agent.last_decision_at,
-            action_breakdown=action_breakdown,
-            trade_decisions=trade_count,
-            executed_trades=executed_count,
-            execution_rate=execution_rate,
+            total_thoughts=total_count,
+            thought_breakdown=thought_breakdown,
+            last_activity_at=agent.last_decision_at,
         )
 
     async def get_active_agents(self) -> List[Agent]:
@@ -496,32 +297,45 @@ class AgentRepository:
 
         return [self._db_to_agent(agent) for agent in agents]
 
-    async def update_last_processed_tweet_without_commit(
-        self, agent_id: UUID, timestamp: datetime
-    ):
+    async def update_last_processed_tweet_without_commit(self, agent_id: UUID, timestamp: datetime):
         """Update the last processed tweet timestamp for an agent"""
         agent_db = await self._get_db_agent_or_none(agent_id)
         if agent_db:
             agent_db.last_processed_tweet_at = timestamp
             await self.session.flush()
 
-    async def save_orphan_thought_without_commit(
+    async def list_agent_thoughts(
         self,
         agent_id: UUID,
-        thought_type: AgentThoughtType,
-        content: str,
-        step_number: int = 0,
-    ):
-        """Save a thought that's not associated with a specific decision"""
-        thought = AgentThought(
-            agent_id=agent_id,
-            decision_id=None,  # Orphan thought, not tied to a decision
-            step_number=step_number,
-            thought_type=thought_type,
-            content=content[:2000],  # Truncate to field limit
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[ThoughtInfo]:
+        """Get thoughts timeline for an agent"""
+        thoughts_query = (
+            select(AgentThought)
+            .where(AgentThought.agent_id == agent_id)
+            .order_by(AgentThought.created_at.desc())
+            .limit(limit)
+            .offset(offset)
         )
-        self.session.add(thought)
-        await self.session.flush()
+        thoughts_result = await self.session.execute(thoughts_query)
+        thoughts = thoughts_result.scalars().all()
+
+        # Convert DB models to ThoughtInfo schema objects
+        return [
+            ThoughtInfo(
+                thought_id=thought.thought_id,
+                agent_id=thought.agent_id,
+                step_number=thought.step_number,
+                thought_type=thought.thought_type,
+                content=thought.content,
+                tool_name=thought.tool_name,
+                tool_args=thought.tool_args,
+                tool_result=thought.tool_result,
+                created_at=thought.created_at,
+            )
+            for thought in thoughts
+        ]
 
     async def cleanup_old_memories_without_commit(
         self,

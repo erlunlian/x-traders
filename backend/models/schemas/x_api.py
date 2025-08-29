@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, validator
@@ -12,6 +13,7 @@ class UserInfo(BaseModel):
     location: Optional[str] = None
     num_followers: int = 0
     num_following: int = 0
+    fetched_at: datetime
 
 
 class TweetEntities(BaseModel):

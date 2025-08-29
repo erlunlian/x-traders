@@ -1,6 +1,7 @@
 """
 Webhook models for receiving tweets from TwitterAPI.io
 """
+
 from typing import List, Optional
 
 from pydantic import BaseModel, Field, field_validator
@@ -27,7 +28,7 @@ class WebhookTweet(BaseModel):
     quote_count: Optional[int] = Field(default=0)
     view_count: Optional[int] = Field(default=0)
     bookmark_count: Optional[int] = Field(default=0)
-    
+
     # Optional fields that might be in the payload
     is_reply: Optional[bool] = Field(default=False)
     in_reply_to_id: Optional[str] = None
@@ -55,14 +56,14 @@ class WebhookPayload(BaseModel):
 
 class ProcessedTweet(BaseModel):
     """Result of processing a single tweet"""
-    
+
     tweet_id: str
     username: str
 
 
 class SkippedTweet(BaseModel):
     """Tweet that was skipped during processing"""
-    
+
     tweet_id: str
     username: str
     reason: str
@@ -70,14 +71,14 @@ class SkippedTweet(BaseModel):
 
 class ProcessingError(BaseModel):
     """Error that occurred during processing"""
-    
+
     tweet_id: str
     error: str
 
 
 class WebhookProcessingResult(BaseModel):
     """Result of processing webhook payload"""
-    
+
     processed: int
     skipped: int
     errors: int

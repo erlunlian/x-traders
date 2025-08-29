@@ -1,16 +1,16 @@
 """
-System prompt builder for AI agents.
+system prompt builder for AI agents.
 Combines standardized system instructions with personality prompts.
 """
 
 
-def build_system_prompt(personality_prompt: str) -> str:
+def build_system_prompt(personality: str) -> str:
     """
     Build complete system prompt from personality.
-    
+
     Args:
         personality_prompt: The unique personality/character traits for this agent
-        
+
     Returns:
         Complete system prompt with base instructions and personality
     """
@@ -54,5 +54,5 @@ Guidelines:
 
 Your unique personality and trading style:
 {personality}"""
-    
-    return base_prompt.format(personality=personality_prompt)
+
+    return base_prompt.format(personality=personality)

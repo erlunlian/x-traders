@@ -3,14 +3,15 @@ Tool registry for LangGraph agents to interact with the exchange.
 These tools are structured for easy integration with LangChain/LangGraph.
 """
 
-from typing import List, Optional
+from typing import List
 from uuid import UUID
 
 from langchain_core.tools import StructuredTool
+from pydantic import BaseModel, Field
 
 from database import get_db_transaction
 from database.repositories import XDataRepository
-from enums import OrderType
+from enums import AgentToolName, OrderType
 from models.responses import (
     AllXUsersResult,
     CancelResult,
@@ -18,7 +19,6 @@ from models.responses import (
     OrderStatusResult,
     PortfolioResult,
     RecentTweetsResult,
-    TraderResult,
     TweetData,
     TweetsByIdsResult,
     UserTweetsResult,
@@ -35,22 +35,8 @@ from models.responses.market_data import (
     TickerListResult,
     TradeData,
 )
-from models.tools import (
-    BuyOrderInput,
-    CancelOrderInput,
-    CreateTraderInput,
-    GetAllXUsersInput,
-    GetOrderBookInput,
-    GetOrderStatusInput,
-    GetPortfolioInput,
-    GetPriceInput,
-    GetRecentTradesInput,
-    GetRecentTweetsInput,
-    GetTweetsByIdsInput,
-    GetUserTweetsInput,
-    GetXUserInfoInput,
-    SellOrderInput,
-)
+
+# Tool input schemas are now defined in this file using Pydantic models with Field descriptions
 from services.market_data import (
     get_all_prices,
     get_available_tickers,
@@ -60,7 +46,6 @@ from services.market_data import (
 )
 from services.trading import (
     cancel_order,
-    create_trader,
     get_order_status,
     get_portfolio,
     place_buy_order,
@@ -68,66 +53,173 @@ from services.trading import (
 )
 
 
+# Pydantic models for tool inputs with descriptions
+class BuyLimitOrderInput(BaseModel):
+    """Input for placing a limit buy order"""
+
+    ticker: str = Field(description="Stock ticker symbol (e.g., '@elonmusk', '@sama')")
+    quantity: int = Field(description="Number of shares to buy", gt=0)
+    limit_price_in_cents: int = Field(
+        description="Maximum price per share in cents (e.g., 10050 for $100.50)", gt=0
+    )
+    tif_seconds: int = Field(
+        default=60,
+        description="Time in force - how long the order stays active in seconds",
+        ge=1,
+        le=86400,
+    )
+
+
+class BuyLimitOrderInputWithTraderId(BuyLimitOrderInput):
+    """Input for placing a limit buy order with trader_id"""
+
+    trader_id: str = Field(description="The unique identifier of the trader")
+
+
+class SellLimitOrderInput(BaseModel):
+    """Input for placing a limit sell order"""
+
+    ticker: str = Field(description="Stock ticker symbol (e.g., '@elonmusk', '@sama')")
+    quantity: int = Field(description="Number of shares to sell", gt=0)
+    limit_price_in_cents: int = Field(
+        description="Minimum price per share in cents (e.g., 10050 for $100.50)", gt=0
+    )
+    tif_seconds: int = Field(
+        default=60,
+        description="Time in force - how long the order stays active in seconds",
+        ge=1,
+        le=86400,
+    )
+
+
+class SellLimitOrderInputWithTraderId(SellLimitOrderInput):
+    """Input for placing a limit sell order with trader_id"""
+
+    trader_id: str = Field(description="The unique identifier of the trader")
+
+
+class CancelOrderInput(BaseModel):
+    """Input for canceling an order"""
+
+    order_id: str = Field(description="The unique identifier of the order to cancel")
+
+
+class CancelOrderInputWithTraderId(CancelOrderInput):
+    """Input for canceling an order with trader_id"""
+
+    trader_id: str = Field(description="The unique identifier of the trader")
+
+
+# Market data input schemas
+class OrderStatusInput(BaseModel):
+    """Input for checking order status"""
+
+    order_id: str = Field(description="The unique identifier of the order to check")
+
+
+class OrderBookInput(BaseModel):
+    """Input for getting order book data"""
+
+    ticker: str = Field(description="Stock ticker symbol (e.g., '@elonmusk', '@sama')")
+
+
+class PriceInput(BaseModel):
+    """Input for checking current price"""
+
+    ticker: str = Field(description="Stock ticker symbol (e.g., '@elonmusk', '@sama')")
+
+
+class RecentTradesInput(BaseModel):
+    """Input for getting recent trades"""
+
+    ticker: str = Field(description="Stock ticker symbol (e.g., '@elonmusk', '@sama')")
+    limit: int = Field(default=10, description="Maximum number of trades to return", ge=1, le=100)
+
+
+# X/Twitter data input schemas
+class XUserInfoInput(BaseModel):
+    """Input for getting X/Twitter user information"""
+
+    username: str = Field(description="X/Twitter username without @ (e.g., 'elonmusk', 'sama')")
+
+
+class UserTweetsInput(BaseModel):
+    """Input for getting tweets from a specific user"""
+
+    username: str = Field(description="X/Twitter username without @ (e.g., 'elonmusk', 'sama')")
+    limit: int = Field(default=10, description="Maximum number of tweets to return", ge=1, le=100)
+
+
+class RecentTweetsInput(BaseModel):
+    """Input for getting recent tweets from all cached users"""
+
+    limit: int = Field(default=20, description="Maximum number of tweets to return", ge=1, le=100)
+
+
+class TweetsByIdsInput(BaseModel):
+    """Input for getting specific tweets by their IDs"""
+
+    tweet_ids: list[str] = Field(description="List of tweet IDs to retrieve")
+
+
+# Utility input schemas
+class RestInput(BaseModel):
+    """Input for taking a rest/break"""
+
+    duration_minutes: int = Field(default=5, description="Duration to rest in minutes", ge=1, le=60)
+
+
 # Trading action tools
-async def buy_stock(
-    trader_id: str,
-    ticker: str,
-    quantity: int,
-    order_type: str = "MARKET",
-    limit_price_in_cents: Optional[int] = None,
-) -> OrderResult:
-    """Place a buy order for stocks"""
+async def buy_stock(**kwargs) -> OrderResult:
+    """Place a LIMIT buy order for stocks"""
+    input_data = BuyLimitOrderInputWithTraderId(**kwargs)
     try:
-        order_type_enum = OrderType[order_type]
         order_id = await place_buy_order(
-            UUID(trader_id),
-            ticker,
-            quantity,
-            order_type_enum,
-            limit_price_in_cents,
+            UUID(input_data.trader_id),
+            input_data.ticker,
+            input_data.quantity,
+            OrderType.LIMIT,
+            input_data.limit_price_in_cents,
+            input_data.tif_seconds,
         )
         return OrderResult(
             success=True,
             order_id=order_id,
-            message=f"Buy order placed for {quantity} shares of {ticker}",
+            message=f"Buy order placed for {input_data.quantity} shares of {input_data.ticker}",
         )
     except Exception as e:
         return OrderResult(success=False, message="", error=str(e))
 
 
-async def sell_stock(
-    trader_id: str,
-    ticker: str,
-    quantity: int,
-    order_type: str = "MARKET",
-    limit_price_in_cents: Optional[int] = None,
-) -> OrderResult:
-    """Place a sell order for stocks"""
+async def sell_stock(**kwargs) -> OrderResult:
+    """Place a LIMIT sell order for stocks"""
+    input_data = SellLimitOrderInputWithTraderId(**kwargs)
     try:
-        order_type_enum = OrderType[order_type]
         order_id = await place_sell_order(
-            UUID(trader_id),
-            ticker,
-            quantity,
-            order_type_enum,
-            limit_price_in_cents,
+            UUID(input_data.trader_id),
+            input_data.ticker,
+            input_data.quantity,
+            OrderType.LIMIT,
+            input_data.limit_price_in_cents,
+            input_data.tif_seconds,
         )
         return OrderResult(
             success=True,
             order_id=order_id,
-            message=f"Sell order placed for {quantity} shares of {ticker}",
+            message=f"Sell order placed for {input_data.quantity} shares of {input_data.ticker}",
         )
     except Exception as e:
         return OrderResult(success=False, message="", error=str(e))
 
 
-async def cancel_stock_order(trader_id: str, order_id: str) -> CancelResult:
+async def cancel_stock_order(**kwargs) -> CancelResult:
     """Cancel an existing order"""
+    input_data = CancelOrderInputWithTraderId(**kwargs)
     try:
-        success = await cancel_order(UUID(trader_id), UUID(order_id))
+        success = await cancel_order(UUID(input_data.trader_id), UUID(input_data.order_id))
         if success:
             return CancelResult(
-                success=True, message=f"Order {order_id} cancelled successfully"
+                success=True, message=f"Order {input_data.order_id} cancelled successfully"
             )
         else:
             return CancelResult(
@@ -138,10 +230,11 @@ async def cancel_stock_order(trader_id: str, order_id: str) -> CancelResult:
         return CancelResult(success=False, message="", error=str(e))
 
 
-async def check_order_status(order_id: str) -> OrderStatusResult:
+async def check_order_status(**kwargs) -> OrderStatusResult:
     """Check the status of an order"""
+    input_data = OrderStatusInput(**kwargs)
     try:
-        status = await get_order_status(UUID(order_id))
+        status = await get_order_status(UUID(input_data.order_id))
         return OrderStatusResult(
             success=True,
             order_id=status.order_id,
@@ -176,24 +269,12 @@ async def check_portfolio(trader_id: str) -> PortfolioResult:
         return PortfolioResult(success=False, error=str(e))
 
 
-async def create_new_trader(initial_cash_in_cents: int = 100_000_000) -> TraderResult:
-    """Create a new trader account"""
-    try:
-        trader_id = await create_trader(initial_cash_in_cents)
-        return TraderResult(
-            success=True,
-            trader_id=trader_id,
-            initial_cash_dollars=initial_cash_in_cents / 100,
-        )
-    except Exception as e:
-        return TraderResult(success=False, error=str(e))
-
-
 # Market data tools
-async def check_order_book(ticker: str) -> OrderBookData:
+async def check_order_book(**kwargs) -> OrderBookData:
     """Get order book for a ticker showing all bid and ask levels"""
+    input_data = OrderBookInput(**kwargs)
     try:
-        result = await get_order_book(ticker)
+        result = await get_order_book(input_data.ticker)
         if result.success:
             return OrderBookData(
                 success=True,
@@ -213,9 +294,7 @@ async def check_order_book(ticker: str) -> OrderBookData:
                     for level in result.asks[:5]  # Top 5 levels
                 ],
                 last_price_dollars=(
-                    result.last_price_in_cents / 100
-                    if result.last_price_in_cents
-                    else None
+                    result.last_price_in_cents / 100 if result.last_price_in_cents else None
                 ),
             )
         else:
@@ -224,27 +303,22 @@ async def check_order_book(ticker: str) -> OrderBookData:
         return OrderBookData(success=False, error=str(e))
 
 
-async def check_price(ticker: str) -> PriceResult:
+async def check_price(**kwargs) -> PriceResult:
     """Get current price and spread for a ticker"""
+    input_data = PriceInput(**kwargs)
     try:
-        price = await get_current_price(ticker)
+        price = await get_current_price(input_data.ticker)
         return PriceResult(
             success=True,
             ticker=price.ticker,
             last_price_dollars=(
                 price.last_price_in_cents / 100 if price.last_price_in_cents else None
             ),
-            best_bid_dollars=(
-                price.best_bid_in_cents / 100 if price.best_bid_in_cents else None
-            ),
-            best_ask_dollars=(
-                price.best_ask_in_cents / 100 if price.best_ask_in_cents else None
-            ),
+            best_bid_dollars=(price.best_bid_in_cents / 100 if price.best_bid_in_cents else None),
+            best_ask_dollars=(price.best_ask_in_cents / 100 if price.best_ask_in_cents else None),
             bid_size=price.bid_size,
             ask_size=price.ask_size,
-            spread_dollars=(
-                price.spread_in_cents / 100 if price.spread_in_cents else None
-            ),
+            spread_dollars=(price.spread_in_cents / 100 if price.spread_in_cents else None),
         )
     except Exception as e:
         return PriceResult(success=False, error=str(e))
@@ -257,15 +331,9 @@ async def check_all_prices() -> AllPricesResult:
         price_data = [
             PriceData(
                 ticker=p.ticker,
-                last_price_dollars=(
-                    p.last_price_in_cents / 100 if p.last_price_in_cents else None
-                ),
-                best_bid_dollars=(
-                    p.best_bid_in_cents / 100 if p.best_bid_in_cents else None
-                ),
-                best_ask_dollars=(
-                    p.best_ask_in_cents / 100 if p.best_ask_in_cents else None
-                ),
+                last_price_dollars=(p.last_price_in_cents / 100 if p.last_price_in_cents else None),
+                best_bid_dollars=(p.best_bid_in_cents / 100 if p.best_bid_in_cents else None),
+                best_ask_dollars=(p.best_ask_in_cents / 100 if p.best_ask_in_cents else None),
                 spread_dollars=(p.spread_in_cents / 100 if p.spread_in_cents else None),
             )
             for p in prices
@@ -275,10 +343,11 @@ async def check_all_prices() -> AllPricesResult:
         return AllPricesResult(success=False, error=str(e))
 
 
-async def check_recent_trades(ticker: str, limit: int = 20) -> RecentTradesData:
+async def check_recent_trades(**kwargs) -> RecentTradesData:
     """Get recent trades for a ticker"""
+    input_data = RecentTradesInput(**kwargs)
     try:
-        result = await get_recent_trades(ticker, limit)
+        result = await get_recent_trades(input_data.ticker, input_data.limit)
         if result.success:
             trade_data = [
                 TradeData(
@@ -288,9 +357,7 @@ async def check_recent_trades(ticker: str, limit: int = 20) -> RecentTradesData:
                 )
                 for trade in result.trades
             ]
-            return RecentTradesData(
-                success=True, ticker=result.ticker, trades=trade_data
-            )
+            return RecentTradesData(success=True, ticker=result.ticker, trades=trade_data)
         else:
             return RecentTradesData(success=False, error=result.error)
     except Exception as e:
@@ -307,16 +374,17 @@ async def list_tickers() -> TickerListResult:
 
 
 # X/Twitter data tools (read-only from database cache)
-async def get_x_user_info(username: str) -> XUserInfoResult:
+async def get_x_user_info(**kwargs) -> XUserInfoResult:
     """Get cached X/Twitter user information"""
+    input_data = XUserInfoInput(**kwargs)
     try:
         async with get_db_transaction() as session:
             repo = XDataRepository(session)
-            user = await repo.get_user_or_none(username)
+            user = await repo.get_user_or_none(input_data.username)
 
             if not user:
                 return XUserInfoResult(
-                    success=False, error=f"User @{username} not found in cache"
+                    success=False, error=f"User @{input_data.username} not found in cache"
                 )
 
             return XUserInfoResult(
@@ -333,18 +401,19 @@ async def get_x_user_info(username: str) -> XUserInfoResult:
         return XUserInfoResult(success=False, error=str(e))
 
 
-async def get_user_tweets(username: str, limit: int = 20) -> UserTweetsResult:
+async def get_user_tweets(**kwargs) -> UserTweetsResult:
     """Get cached tweets from a specific user"""
+    input_data = UserTweetsInput(**kwargs)
     try:
         async with get_db_transaction() as session:
             repo = XDataRepository(session)
-            tweets = await repo.get_tweets_by_username(username, limit)
+            tweets = await repo.get_tweets_by_username(input_data.username, input_data.limit)
 
             if not tweets:
                 return UserTweetsResult(
                     success=False,
-                    username=username,
-                    error=f"No tweets found for @{username} in cache",
+                    username=input_data.username,
+                    error=f"No tweets found for @{input_data.username} in cache",
                 )
 
             tweet_data = [
@@ -366,7 +435,7 @@ async def get_user_tweets(username: str, limit: int = 20) -> UserTweetsResult:
 
             return UserTweetsResult(
                 success=True,
-                username=username,
+                username=input_data.username,
                 tweet_count=len(tweet_data),
                 tweets=tweet_data,
             )
@@ -374,18 +443,19 @@ async def get_user_tweets(username: str, limit: int = 20) -> UserTweetsResult:
         return UserTweetsResult(success=False, error=str(e))
 
 
-async def get_tweets_by_ids(tweet_ids: List[str]) -> TweetsByIdsResult:
+async def get_tweets_by_ids(**kwargs) -> TweetsByIdsResult:
     """Get specific cached tweets by their IDs"""
-    if not tweet_ids:
+    input_data = TweetsByIdsInput(**kwargs)
+    if not input_data.tweet_ids:
         return TweetsByIdsResult(success=False, error="No tweet IDs provided")
 
     try:
         async with get_db_transaction() as session:
             repo = XDataRepository(session)
-            tweets = await repo.get_tweets_by_ids(tweet_ids)
+            tweets = await repo.get_tweets_by_ids(input_data.tweet_ids)
 
             found_ids = {tweet.tweet_id for tweet in tweets}
-            missing_ids = [tid for tid in tweet_ids if tid not in found_ids]
+            missing_ids = [tid for tid in input_data.tweet_ids if tid not in found_ids]
 
             tweet_data = [
                 TweetData(
@@ -406,7 +476,7 @@ async def get_tweets_by_ids(tweet_ids: List[str]) -> TweetsByIdsResult:
 
             return TweetsByIdsResult(
                 success=True,
-                requested=len(tweet_ids),
+                requested=len(input_data.tweet_ids),
                 found=len(tweets),
                 missing_ids=missing_ids,
                 tweets=tweet_data,
@@ -433,22 +503,21 @@ async def get_all_x_users() -> AllXUsersResult:
                 for user in users
             ]
 
-            return AllXUsersResult(
-                success=True, user_count=len(user_data), users=user_data
-            )
+            return AllXUsersResult(success=True, user_count=len(user_data), users=user_data)
     except Exception as e:
         return AllXUsersResult(success=False, error=str(e))
 
 
-async def get_recent_tweets(limit: int = 50) -> RecentTweetsResult:
+async def get_x_recent_tweets(**kwargs) -> RecentTweetsResult:
     """Get recent tweets from all cached users"""
+    input_data = RecentTweetsInput(**kwargs)
     try:
         async with get_db_transaction() as session:
             repo = XDataRepository(session)
             tweets = await repo.get_all_tweets()
 
             # Apply limit
-            tweets = tweets[:limit] if limit else tweets
+            tweets = tweets[: input_data.limit] if input_data.limit else tweets
 
             tweet_data = [
                 TweetData(
@@ -467,104 +536,115 @@ async def get_recent_tweets(limit: int = 50) -> RecentTweetsResult:
                 for tweet in tweets
             ]
 
-            return RecentTweetsResult(
-                success=True, tweet_count=len(tweet_data), tweets=tweet_data
-            )
+            return RecentTweetsResult(success=True, tweet_count=len(tweet_data), tweets=tweet_data)
     except Exception as e:
         return RecentTweetsResult(success=False, error=str(e))
 
 
 # Agent utility tools
-async def rest(duration_minutes: int = 5) -> dict:
+async def rest(**kwargs) -> dict:
     """Take a break for a specified duration"""
+    input_data = RestInput(**kwargs)
     import asyncio
 
-    await asyncio.sleep(duration_minutes * 60)
-    return {"success": True, "rested": True, "duration_minutes": duration_minutes}
+    await asyncio.sleep(input_data.duration_minutes * 60)
+    return {"success": True, "rested": True, "duration_minutes": input_data.duration_minutes}
 
 
-def get_trading_tools() -> List[StructuredTool]:
+def get_trading_tools(trader_id: str) -> List[StructuredTool]:
     """
     Get all trading tools for LangGraph agents.
+
+    Args:
+        trader_id: The trader_id to bind to all trading tools (required)
 
     Returns:
         List of StructuredTool objects ready for use in LangGraph
     """
+
+    # Create wrapper functions that include the trader_id
+    async def buy_limit_with_embedded_trader_id(**kwargs) -> OrderResult:
+        order = BuyLimitOrderInput(**kwargs)
+        return await buy_stock(trader_id, order)
+
+    async def sell_limit_with_embedded_trader_id(**kwargs) -> OrderResult:
+        order = SellLimitOrderInput(**kwargs)
+        return await sell_stock(trader_id, order)
+
+    async def cancel_stock_order_with_embedded_trader_id(**kwargs) -> CancelResult:
+        cancel_input = CancelOrderInput(**kwargs)
+        return await cancel_stock_order(trader_id, cancel_input)
+
+    async def check_portfolio_wrapped_with_embedded_trader_id() -> PortfolioResult:
+        return await check_portfolio(trader_id)
+
     return [
-        # Trading actions
+        # Trading actions with trader_id bound
         StructuredTool.from_function(
-            func=buy_stock,
-            name="buy_stock",
-            description="Place a buy order for stocks",
-            args_schema=BuyOrderInput,
-            coroutine=buy_stock,
+            func=buy_limit_with_embedded_trader_id,
+            name=AgentToolName.BUY_LIMIT,
+            description="Place a LIMIT buy order that executes at or below the specified price",
+            args_schema=BuyLimitOrderInput,
+            coroutine=buy_limit_with_embedded_trader_id,
         ),
         StructuredTool.from_function(
-            func=sell_stock,
-            name="sell_stock",
-            description="Place a sell order for stocks",
-            args_schema=SellOrderInput,
-            coroutine=sell_stock,
+            func=sell_limit_with_embedded_trader_id,
+            name=AgentToolName.SELL_LIMIT,
+            description="Place a LIMIT sell order that executes at or above the specified price",
+            args_schema=SellLimitOrderInput,
+            coroutine=sell_limit_with_embedded_trader_id,
         ),
         StructuredTool.from_function(
-            func=cancel_stock_order,
-            name="cancel_order",
+            func=cancel_stock_order_with_embedded_trader_id,
+            name=AgentToolName.CANCEL_ORDER,
             description="Cancel an existing order",
             args_schema=CancelOrderInput,
-            coroutine=cancel_stock_order,
+            coroutine=cancel_stock_order_with_embedded_trader_id,
         ),
         StructuredTool.from_function(
             func=check_order_status,
-            name="check_order_status",
+            name=AgentToolName.CHECK_ORDER_STATUS,
             description="Check the status of an order",
-            args_schema=GetOrderStatusInput,
+            args_schema=OrderStatusInput,
             coroutine=check_order_status,
         ),
         StructuredTool.from_function(
-            func=check_portfolio,
-            name="check_portfolio",
-            description="Check trader's portfolio and cash balance",
-            args_schema=GetPortfolioInput,
-            coroutine=check_portfolio,
+            func=check_portfolio_wrapped_with_embedded_trader_id,
+            name=AgentToolName.CHECK_PORTFOLIO,
+            description="Check your current portfolio and cash balance",
+            coroutine=check_portfolio_wrapped_with_embedded_trader_id,
         ),
-        StructuredTool.from_function(
-            func=create_new_trader,
-            name="create_trader",
-            description="Create a new trader account with initial cash",
-            args_schema=CreateTraderInput,
-            coroutine=create_new_trader,
-        ),
-        # Market data
+        # Market data tools
         StructuredTool.from_function(
             func=check_order_book,
-            name="check_order_book",
+            name=AgentToolName.CHECK_ORDER_BOOK,
             description="Get order book showing bid/ask levels for a ticker",
-            args_schema=GetOrderBookInput,
+            args_schema=OrderBookInput,
             coroutine=check_order_book,
         ),
         StructuredTool.from_function(
             func=check_price,
-            name="check_price",
+            name=AgentToolName.CHECK_PRICE,
             description="Get current price and spread for a ticker",
-            args_schema=GetPriceInput,
+            args_schema=PriceInput,
             coroutine=check_price,
         ),
         StructuredTool.from_function(
             func=check_all_prices,
-            name="check_all_prices",
+            name=AgentToolName.CHECK_ALL_PRICES,
             description="Get current prices for all tradeable tickers",
             coroutine=check_all_prices,
         ),
         StructuredTool.from_function(
             func=check_recent_trades,
-            name="check_recent_trades",
+            name=AgentToolName.CHECK_RECENT_TRADES,
             description="Get recent trades for a ticker",
-            args_schema=GetRecentTradesInput,
+            args_schema=RecentTradesInput,
             coroutine=check_recent_trades,
         ),
         StructuredTool.from_function(
             func=list_tickers,
-            name="list_tickers",
+            name=AgentToolName.LIST_TICKERS,
             description="Get list of all tradeable ticker symbols",
             coroutine=list_tickers,
         ),
@@ -581,38 +661,37 @@ def get_x_data_tools() -> List[StructuredTool]:
     return [
         StructuredTool.from_function(
             func=get_x_user_info,
-            name="get_x_user_info",
+            name=AgentToolName.GET_X_USER_INFO,
             description="Get cached X/Twitter user profile information",
-            args_schema=GetXUserInfoInput,
+            args_schema=XUserInfoInput,
             coroutine=get_x_user_info,
         ),
         StructuredTool.from_function(
             func=get_user_tweets,
-            name="get_user_tweets",
+            name=AgentToolName.GET_X_USER_TWEETS,
             description="Get cached tweets from a specific user",
-            args_schema=GetUserTweetsInput,
+            args_schema=UserTweetsInput,
             coroutine=get_user_tweets,
         ),
         StructuredTool.from_function(
             func=get_tweets_by_ids,
-            name="get_tweets_by_ids",
+            name=AgentToolName.GET_X_TWEETS_BY_IDS,
             description="Get specific cached tweets by their IDs",
-            args_schema=GetTweetsByIdsInput,
+            args_schema=TweetsByIdsInput,
             coroutine=get_tweets_by_ids,
         ),
         StructuredTool.from_function(
             func=get_all_x_users,
-            name="get_all_x_users",
+            name=AgentToolName.GET_ALL_X_USERS,
             description="Get all cached X/Twitter users",
-            args_schema=GetAllXUsersInput,
             coroutine=get_all_x_users,
         ),
         StructuredTool.from_function(
-            func=get_recent_tweets,
-            name="get_recent_tweets",
+            func=get_x_recent_tweets,
+            name=AgentToolName.GET_X_RECENT_TWEETS,
             description="Get recent tweets from all cached users",
-            args_schema=GetRecentTweetsInput,
-            coroutine=get_recent_tweets,
+            args_schema=RecentTweetsInput,
+            coroutine=get_x_recent_tweets,
         ),
     ]
 

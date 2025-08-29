@@ -87,10 +87,8 @@ class AgentThoughtType(str, Enum):
     """Types of thoughts in agent's decision process"""
 
     THINKING = "THINKING"  # General thinking
-    ANALYZING = "ANALYZING"  # Analyzing data
-    DECIDING = "DECIDING"  # Making a decision
-    EXECUTING = "EXECUTING"  # Executing action
-    REFLECTING = "REFLECTING"  # Contemplating results
+    TOOL_CALL = "TOOL_CALL"  # Tool call
+    ERROR = "ERROR"  # Error
 
 
 class AgentMemoryType(str, Enum):
@@ -167,6 +165,25 @@ class LLMModel(str, Enum):
         return mapper[self]
 
 
+class AgentToolName(str, Enum):
+    REST = "rest"
+    BUY_LIMIT = "buy_limit"
+    SELL_LIMIT = "sell_limit"
+    CANCEL_ORDER = "cancel_order"
+    CHECK_ORDER_STATUS = "check_order_status"
+    CHECK_PORTFOLIO = "check_portfolio"
+    CHECK_ORDER_BOOK = "check_order_book"
+    CHECK_PRICE = "check_price"
+    CHECK_ALL_PRICES = "check_all_prices"
+    CHECK_RECENT_TRADES = "check_recent_trades"
+    LIST_TICKERS = "list_tickers"
+    GET_X_USER_INFO = "get_x_user_info"
+    GET_X_USER_TWEETS = "get_x_user_tweets"
+    GET_X_TWEETS_BY_IDS = "get_x_tweets_by_ids"
+    GET_ALL_X_USERS = "get_all_x_users"
+    GET_X_RECENT_TWEETS = "get_x_recent_tweets"
+
+
 # Export all enums
 __all__ = [
     "Side",
@@ -181,4 +198,5 @@ __all__ = [
     "AgentThoughtType",
     "AgentMemoryType",
     "LLMModel",
+    "AgentToolName",
 ]

@@ -9,7 +9,8 @@ from uuid import UUID
 
 from database import async_session
 from database.repositories import AgentRepository, XDataRepository
-from models.schemas.agents import Agent
+from enums import AgentThoughtType, AgentToolName
+from models.schemas.agents import Agent, ThoughtInfo
 from models.schemas.tweet_feed import TweetForAgent
 
 
@@ -75,54 +76,29 @@ async def update_last_processed_tweet_safe(agent_id: UUID, timestamp: datetime) 
         await session.commit()
 
 
-async def record_decision_safe(
+async def create_thought_safe(
     agent_id: UUID,
-    trigger_type,
-    action,
-    thoughts: List,
-    ticker: Optional[str] = None,
-    quantity: Optional[int] = None,
-    reasoning: Optional[str] = None,
-    trigger_tweet_id: Optional[UUID] = None,
-    order_id: Optional[UUID] = None,
-    executed: bool = False,
-) -> UUID:
+    step_number: int,
+    thought_type: AgentThoughtType,
+    content: str,
+    tool_name: Optional[AgentToolName],
+    tool_args: Optional[str],
+    tool_result: Optional[str],
+) -> ThoughtInfo:
     """
-    Record a decision with proper session handling.
-    Returns the decision_id.
-    """
-    async with async_session() as session:
-        repo = AgentRepository(session)
-        decision = await repo.record_decision_without_commit(
-            agent_id=agent_id,
-            trigger_type=trigger_type,
-            action=action,
-            thoughts=thoughts,
-            ticker=ticker,
-            quantity=quantity,
-            reasoning=reasoning,
-            trigger_tweet_id=trigger_tweet_id,
-            order_id=order_id,
-            executed=executed,
-        )
-        await session.commit()
-        return decision.decision_id
-
-
-async def save_orphan_thoughts_safe(agent_id: UUID, thoughts: List) -> None:
-    """
-    Save orphan thoughts with proper session handling.
+    Create a single thought and return ThoughtInfo with ID.
     Creates its own transaction context.
     """
     async with async_session() as session:
         repo = AgentRepository(session)
-
-        for thought in thoughts:
-            await repo.save_orphan_thought_without_commit(
-                agent_id=agent_id,
-                thought_type=thought.thought_type,
-                content=thought.content,
-                step_number=thought.step_number,
-            )
-
+        thought_info = await repo.create_thought_without_commit(
+            agent_id=agent_id,
+            step_number=step_number,
+            thought_type=thought_type,
+            content=content,
+            tool_name=tool_name,
+            tool_args=tool_args,
+            tool_result=tool_result,
+        )
         await session.commit()
+        return thought_info
