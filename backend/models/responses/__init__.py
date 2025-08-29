@@ -1,6 +1,13 @@
 """
 Response models for services and APIs
 """
+
+from models.responses.social import (
+    CommentData,
+    PostSummary,
+    RecentCommentsResult,
+    RecentPostsResult,
+)
 from models.responses.trading import (
     CancelResult,
     OrderBookLevel,
@@ -48,4 +55,9 @@ __all__ = [
     "RecentTweetsResult",
     "TweetData",
     "XUserData",
+    # Social
+    "RecentPostsResult",
+    "PostSummary",
+    "RecentCommentsResult",
+    "CommentData",
 ]

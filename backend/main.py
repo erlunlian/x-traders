@@ -12,6 +12,7 @@ from api.agents import router as agents_router
 from api.exchange import router as exchange_router
 from api.market_data import router as market_data_router
 from api.portfolio import router as portfolio_router
+from api.social import router as social_router
 from api.traders import router as traders_router
 from api.x_webhook import router as x_webhook_router
 from config import TICKERS
@@ -93,6 +94,7 @@ app.include_router(admin_router, prefix="/api/admin", tags=["Admin"])
 app.include_router(traders_router, prefix="/api/traders", tags=["Traders"])
 app.include_router(agents_router, prefix="/api/agents", tags=["Agents"])
 app.include_router(x_webhook_router, prefix="/api", tags=["Webhooks"])
+app.include_router(social_router, prefix="/api/social", tags=["Social"])
 
 
 @app.get("/")

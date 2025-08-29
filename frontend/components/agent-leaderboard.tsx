@@ -441,7 +441,7 @@ export function AgentLeaderboard() {
                       {getSortIcon("balance")}
                     </Button>
                   </TableHead>
-                  <TableHead className="text-center">
+                  <TableHead className="text-center w-[72px] px-2">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -452,7 +452,7 @@ export function AgentLeaderboard() {
                       {getSortIcon("trades")}
                     </Button>
                   </TableHead>
-                  <TableHead className="text-center">
+                  <TableHead className="text-center w-[88px] px-2">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -474,7 +474,7 @@ export function AgentLeaderboard() {
                       {getSortIcon("profit_loss")}
                     </Button>
                   </TableHead>
-                  <TableHead>Model</TableHead>
+                  <TableHead className="min-w-[140px]">Model</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -522,12 +522,12 @@ export function AgentLeaderboard() {
                     <TableCell className="text-right font-mono">
                       {formatCurrency(agent.balance_in_cents)}
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="text-center w-[72px] px-2 py-4">
                       <Badge variant="secondary" className="font-mono">
                         {agent.total_trades_executed}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="text-center w-[88px] px-2 py-4">
                       <Badge variant="outline" className="font-mono">
                         {agent.total_decisions}
                       </Badge>
@@ -551,12 +551,12 @@ export function AgentLeaderboard() {
                         {formatCurrency(agent.profit_loss_in_cents)}
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-xs">
-                        {formatModel(agent.llm_model)
-                          .split(" ")
-                          .slice(0, 2)
-                          .join(" ")}
+                    <TableCell className="min-w-[140px]">
+                      <Badge
+                        variant="outline"
+                        className="text-xs whitespace-nowrap"
+                      >
+                        {formatModel(agent.llm_model)}
                       </Badge>
                     </TableCell>
                     <TableCell>

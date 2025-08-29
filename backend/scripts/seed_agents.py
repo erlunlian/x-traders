@@ -20,10 +20,11 @@ Environment:
 
 import argparse
 import asyncio
+import json
 import os
 import random
 import re
-from typing import Optional
+from typing import Optional, Tuple
 
 from database import get_db_transaction
 from database.repositories import AgentRepository, LedgerRepository, TraderRepository
@@ -90,17 +91,30 @@ def _fallback_personality_prompt(name: str) -> str:
         "pragmatic and risk-aware",
         "data-obsessed and systematic",
     ]
+    social_levels = [
+        "lurker",
+        "balanced",
+        "highly active",
+    ]
+    social_behaviors = [
+        "quietly consumes the internal agent feed for specific tickers and reacts to sentiment shifts",
+        "reads and occasionally posts concise takes on ticker narratives to test market response",
+        "actively posts to shape short-term sentiment and amplify momentum on selected tickers",
+    ]
 
     random.seed(name)  # keep fallback stable for a given name
     style = random.choice(risk_styles)
     focus = random.choice(focuses)
     cohort = random.choice(cohorts)
     tone = random.choice(tones)
+    social_level = random.choice(social_levels)
+    social_behavior = random.choice(social_behaviors)
     return (
         f"You are {name}, a {tone} agent trading tokens tied to X user profiles. "
         f"Risk: {style} with disciplined sizing and cool-downs after spikes. Edge: {focus}. "
-        f"Specialty cohort: {cohort}. Read tweet timelines, engagement velocity, sentiment, and"
-        " influencer amplification to time entries and exits. Avoid equity fundamentals."
+        f"Specialty cohort: {cohort}. Read tweet timelines, the internal agent feed, engagement "
+        f"velocity, sentiment, and influencer amplification to time entries and exits. Social "
+        f"activity: {social_level}; {social_behavior}. Avoid equity fundamentals."
     )
 
 
@@ -121,7 +135,11 @@ async def _generate_personality_with_azure(name: str) -> Optional[str]:
                 " risk appetite, decision style (reactive to tweets vs scheduled scans), preferred"
                 " signals (engagement velocity, sentiment, influencer amplification, thread recency),"
                 " and target cohorts (e.g., AI builders, crypto Twitter). Mention simple risk controls"
-                " (position sizing, stop-outs, cool-down after hype spikes). No code or backticks."
+                " (position sizing, stop-outs, cool-down after hype spikes). Also specify the agent's"
+                " typical social activity level (e.g., lurker, balanced, highly active) and how they"
+                " use the internal agent feed to read/post about specific tickers, including whether"
+                " they tend to consume information, coordinate sentiment, or attempt to influence"
+                " momentum. No code or backticks."
             )
         )
         human = HumanMessage(
@@ -137,6 +155,56 @@ async def _generate_personality_with_azure(name: str) -> Optional[str]:
         if len(text) > 5000:
             text = text[:5000]
         return text
+    except Exception:
+        return None
+
+
+async def _generate_name_and_personality_with_azure(index: int) -> Optional[Tuple[str, str]]:
+    """Generate both a human-readable agent name and personality using Azure OpenAI.
+
+    Returns (name, personality) or None if anything fails.
+    """
+    if not _HAS_AZURE_ENV:
+        return None
+
+    try:
+        llm = create_llm(LLMModel.GPT_5_NANO_AZURE, temperature=0.7)
+        system = SystemMessage(
+            content=(
+                "You generate JSON only. Create a concise, human-readable agent name and a short "
+                "personality prompt for an agent that trades tokens tied to X user profiles. "
+                "Keep the personality 2-5 sentences, under 500 characters. Include: risk appetite, "
+                "decision style (reactive to tweets vs scheduled scans), preferred signals "
+                "(engagement velocity, sentiment, influencer amplification, thread recency), target "
+                "cohorts (e.g., AI builders, crypto Twitter), and simple risk controls. Also specify "
+                "the agent's social activity level (lurker/balanced/highly active) and how they read "
+                "and/or post on the internal agent feed for specific tickers, including whether they "
+                "tend to consume information or attempt to influence momentum. No code, no backticks. "
+                "Output valid JSON with keys: name, personality."
+            )
+        )
+        human = HumanMessage(
+            content=(f"Seed index: {index}. Propose a catchy agent name, avoiding offensive terms.")
+        )
+        ai_msg = await llm.ainvoke([system, human])
+        text = (ai_msg.content or "").strip()
+        if not text:
+            return None
+
+        candidate = text
+        # If the model wraps JSON in code fences, strip them
+        if candidate.startswith("```"):
+            candidate = candidate.strip("`\n ")
+            if candidate.startswith("json"):
+                candidate = candidate[4:].strip()
+        data = json.loads(candidate)
+        name_value = str(data.get("name", "")).strip()
+        personality_value = str(data.get("personality", "")).strip()
+        if not name_value or not personality_value:
+            return None
+        if len(personality_value) > 5000:
+            personality_value = personality_value[:5000]
+        return name_value, personality_value
     except Exception:
         return None
 
@@ -175,14 +243,20 @@ def _random_agent_name(index: int) -> str:
 
 async def create_one_agent(index: int) -> None:
     """Create a single agent with a personality and initial cash in one transaction."""
-    # Generate a candidate name and personality
-    base_name = _random_agent_name(index)
-    name = base_name
-
-    # Resolve personality via Azure if available, else fallback
-    personality = await _generate_personality_with_azure(name)
-    if not personality:
-        personality = _fallback_personality_prompt(name)
+    # Prefer LLM to propose both name and personality; fallback to local
+    generated = await _generate_name_and_personality_with_azure(index)
+    if generated:
+        raw_name, personality = generated
+        # Sanitize name to our format while preserving readability
+        base_slug = _slugify(raw_name)
+        name = base_slug or _random_agent_name(index)
+    else:
+        # Local fallback
+        base_name = _random_agent_name(index)
+        name = base_name
+        personality = await _generate_personality_with_azure(name)
+        if not personality:
+            personality = _fallback_personality_prompt(name)
 
     # Create trader, fund cash, and create agent atomically
     async with get_db_transaction() as session:

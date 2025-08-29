@@ -8,6 +8,9 @@ from database.models_agents import AgentMemory, AgentThought, AIAgent
 # Market data models
 from database.models_market import MarketDataOutbox
 
+# Social feed models
+from database.models_social import SocialComment, SocialLike, SocialPost
+
 # Trading models
 from database.models_trading import (
     LedgerEntry,
@@ -38,4 +41,8 @@ __all__ = [
     "AgentMemory",
     # Market
     "MarketDataOutbox",
+    # Social feed
+    "SocialPost",
+    "SocialComment",
+    "SocialLike",
 ]

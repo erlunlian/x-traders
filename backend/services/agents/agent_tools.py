@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from database import get_db_transaction
 from database.repositories import XDataRepository
+from database.repositories_social import SocialRepository
 from enums import AgentToolName, OrderType
 from models.responses import (
     AllXUsersResult,
@@ -36,6 +37,7 @@ from models.responses.market_data import (
     TickerListResult,
     TradeData,
 )
+from models.responses.social import PostSummary, RecentCommentsResult, RecentPostsResult
 
 # Tool input schemas are now defined in this file using Pydantic models with Field descriptions
 from services.market_data import (
@@ -168,6 +170,127 @@ class RestInput(BaseModel):
     """Input for taking a rest/break"""
 
     duration_minutes: int = Field(description="Duration to rest in minutes", ge=1, le=300)
+
+
+# Social feed input schemas
+class CreatePostInput(BaseModel):
+    ticker: str = Field(description="Ticker symbol (e.g., '@elonmusk')")
+    content: str = Field(description="Post content")
+
+
+class CreatePostInputWithTraderId(CreatePostInput):
+    trader_id: str = Field(description="The unique identifier of the trader")
+
+
+class LikePostInput(BaseModel):
+    post_id: str = Field(description="Post UUID to like")
+
+
+class LikePostInputWithTraderId(LikePostInput):
+    trader_id: str = Field(description="The unique identifier of the trader")
+
+
+class AddCommentInput(BaseModel):
+    post_id: str = Field(description="Post UUID to comment on")
+    content: str = Field(description="Comment content")
+
+
+class AddCommentInputWithTraderId(AddCommentInput):
+    trader_id: str = Field(description="The unique identifier of the trader")
+
+
+class RecentTickerPostsInput(BaseModel):
+    ticker: str = Field(description="Ticker symbol")
+    limit: int = Field(default=20, ge=1, le=100)
+
+
+class RecentPostCommentsInput(BaseModel):
+    post_id: str = Field(description="Post UUID")
+    limit: int = Field(default=20, ge=1, le=100)
+
+
+# Social feed tools
+async def create_post(**kwargs) -> dict:
+    input_data = CreatePostInputWithTraderId(**kwargs)
+    from uuid import UUID
+
+    async with get_db_transaction() as session:
+        repo = SocialRepository(session)
+        post = await repo.create_post(agent_id=UUID(input_data.trader_id), ticker=input_data.ticker, content=input_data.content)  # type: ignore[name-defined]
+        return {"success": True, "post_id": str(post.post_id)}
+
+
+async def like_post(**kwargs) -> dict:
+    input_data = LikePostInputWithTraderId(**kwargs)
+    from uuid import UUID
+
+    async with get_db_transaction() as session:
+        repo = SocialRepository(session)
+        await repo.like_post(
+            agent_id=UUID(input_data.trader_id),
+            post_id=UUID(input_data.post_id),
+        )
+        return {"success": True}
+
+
+async def add_comment(**kwargs) -> dict:
+    input_data = AddCommentInputWithTraderId(**kwargs)
+    from uuid import UUID
+
+    async with get_db_transaction() as session:
+        repo = SocialRepository(session)
+        comment = await repo.add_comment(
+            agent_id=UUID(input_data.trader_id),
+            post_id=UUID(input_data.post_id),
+            content=input_data.content,
+        )
+        return {"success": True, "comment_id": str(comment.comment_id)}
+
+
+async def get_recent_ticker_posts(**kwargs) -> RecentPostsResult:
+    input_data = RecentTickerPostsInput(**kwargs)
+    async with get_db_transaction() as session:
+        repo = SocialRepository(session)
+        posts = await repo.get_recent_posts_by_ticker(input_data.ticker, input_data.limit)
+        post_ids = [p.post_id for p in posts]
+        stats = await repo.get_post_counts(post_ids)
+        counts = {s.post_id: (s.like_count, s.comment_count) for s in stats}
+
+        summaries = [
+            PostSummary(
+                post_id=p.post_id,
+                ticker=p.ticker,
+                agent_id=p.agent_id,
+                content=p.content,
+                created_at=p.created_at,
+                likes=counts.get(p.post_id, (0, 0))[0],
+                comments=counts.get(p.post_id, (0, 0))[1],
+            )
+            for p in posts
+        ]
+        return RecentPostsResult(success=True, ticker=input_data.ticker, posts=summaries)
+
+
+async def get_recent_post_comments(**kwargs) -> RecentCommentsResult:
+    input_data = RecentPostCommentsInput(**kwargs)
+    from uuid import UUID
+
+    async with get_db_transaction() as session:
+        repo = SocialRepository(session)
+        comments = await repo.get_recent_comments(UUID(input_data.post_id), input_data.limit)
+        from models.responses.social import CommentData
+
+        items = [
+            CommentData(
+                comment_id=c.comment_id,
+                post_id=c.post_id,
+                agent_id=c.agent_id,
+                content=c.content,
+                created_at=c.created_at,
+            )
+            for c in comments
+        ]
+        return RecentCommentsResult(success=True, post_id=UUID(input_data.post_id), comments=items)
 
 
 # Trading action tools
@@ -551,6 +674,59 @@ async def rest(**kwargs) -> dict:
     input_data = RestInput(**kwargs)
     await asyncio.sleep(input_data.duration_minutes * 60)
     return {"success": True, "rested": True, "duration_minutes": input_data.duration_minutes}
+
+
+def get_social_tools(trader_id: str) -> List[StructuredTool]:
+    """
+    Get all social tools for LangGraph agents.
+    """
+
+    async def create_post_with_embedded_trader_id(**kwargs) -> dict:
+        return await create_post(trader_id=trader_id, **kwargs)
+
+    async def like_post_with_embedded_trader_id(**kwargs) -> dict:
+        return await like_post(trader_id=trader_id, **kwargs)
+
+    async def add_comment_with_embedded_trader_id(**kwargs) -> dict:
+        return await add_comment(trader_id=trader_id, **kwargs)
+
+    return [
+        StructuredTool.from_function(
+            func=create_post_with_embedded_trader_id,
+            name=AgentToolName.CREATE_POST,
+            description="Create a social post under a ticker",
+            args_schema=CreatePostInput,
+            coroutine=create_post,
+        ),
+        StructuredTool.from_function(
+            func=like_post_with_embedded_trader_id,
+            name=AgentToolName.LIKE_POST,
+            description="Like a social post",
+            args_schema=LikePostInput,
+            coroutine=like_post_with_embedded_trader_id,
+        ),
+        StructuredTool.from_function(
+            func=add_comment_with_embedded_trader_id,
+            name=AgentToolName.ADD_COMMENT,
+            description="Add a comment to a social post",
+            args_schema=AddCommentInput,
+            coroutine=add_comment_with_embedded_trader_id,
+        ),
+        StructuredTool.from_function(
+            func=get_recent_ticker_posts,
+            name=AgentToolName.GET_TICKER_POSTS,
+            description="Get recent social posts for a ticker",
+            args_schema=RecentTickerPostsInput,
+            coroutine=get_recent_ticker_posts,
+        ),
+        StructuredTool.from_function(
+            func=get_recent_post_comments,
+            name=AgentToolName.GET_POST_COMMENTS,
+            description="Get recent comments for a post",
+            args_schema=RecentPostCommentsInput,
+            coroutine=get_recent_post_comments,
+        ),
+    ]
 
 
 def get_trading_tools(trader_id: str) -> List[StructuredTool]:

@@ -183,6 +183,12 @@ class AgentToolName(str, Enum):
     GET_X_TWEETS_BY_IDS = "get_x_tweets_by_ids"
     GET_ALL_X_USERS = "get_all_x_users"
     GET_X_RECENT_TWEETS = "get_x_recent_tweets"
+    # Social feed tools
+    CREATE_POST = "create_post"
+    LIKE_POST = "like_post"
+    ADD_COMMENT = "add_comment"
+    GET_TICKER_POSTS = "get_ticker_posts"
+    GET_POST_COMMENTS = "get_post_comments"
 
 
 # Export all enums
