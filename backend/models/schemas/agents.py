@@ -109,11 +109,12 @@ class AgentLeaderboardEntry(BaseModel):
     trader_id: UUID
     llm_model: LLMModel
     is_active: bool
+    initial_balance_in_cents: int
     balance_in_cents: int
     total_assets_value_in_cents: int  # Balance + positions value
     total_trades_executed: int
     total_decisions: int
-    profit_loss_in_cents: int  # Current balance - initial balance
+    profit_loss_in_cents: int  # (Cash + positions value) - initial balance
     created_at: datetime
     last_decision_at: Optional[datetime]
 

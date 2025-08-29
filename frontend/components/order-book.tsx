@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { useQuery } from '@tanstack/react-query';
-import { marketService } from '@/services/market';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatPrice, formatNumber } from '@/lib/utils';
-import { Loader2 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatNumber, formatPrice } from "@/lib/utils";
+import { marketService } from "@/services/market";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 
 interface OrderBookProps {
   ticker: string;
@@ -12,7 +12,7 @@ interface OrderBookProps {
 
 export function OrderBook({ ticker }: OrderBookProps) {
   const { data: orderBook, isLoading } = useQuery({
-    queryKey: ['orderbook', ticker],
+    queryKey: ["orderbook", ticker],
     queryFn: () => marketService.getOrderBook(ticker),
     refetchInterval: 2000, // Refresh every 2 seconds
   });
@@ -61,8 +61,8 @@ export function OrderBook({ ticker }: OrderBookProps) {
     .slice(0, 10);
 
   const maxQuantity = Math.max(
-    ...bids.map(b => b.quantity),
-    ...asks.map(a => a.quantity)
+    ...bids.map((b) => b.quantity),
+    ...asks.map((a) => a.quantity)
   );
 
   return (
@@ -74,7 +74,9 @@ export function OrderBook({ ticker }: OrderBookProps) {
         <div className="space-y-4">
           {/* Asks (Sell Orders) */}
           <div>
-            <h4 className="text-sm font-medium text-muted-foreground mb-2">Asks</h4>
+            <h4 className="text-sm font-medium text-muted-foreground mb-2">
+              Asks
+            </h4>
             <div className="space-y-1">
               {asks.length > 0 ? (
                 asks.map((ask, i) => (
@@ -91,7 +93,9 @@ export function OrderBook({ ticker }: OrderBookProps) {
                     <span className="text-red-500 font-medium z-10">
                       {formatPrice(ask.price)}
                     </span>
-                    <span className="text-center z-10">{formatNumber(ask.quantity)}</span>
+                    <span className="text-center z-10">
+                      {formatNumber(ask.quantity)}
+                    </span>
                     <span className="text-right text-muted-foreground z-10">
                       {formatPrice(ask.price * ask.quantity)}
                     </span>
@@ -110,14 +114,14 @@ export function OrderBook({ ticker }: OrderBookProps) {
               <span className="font-medium">
                 {asks.length > 0 && bids.length > 0
                   ? formatPrice(asks[0].price - bids[0].price)
-                  : '-'}
+                  : "-"}
               </span>
             </div>
-            {orderBook.last_price_in_cents && (
+            {orderBook.current_price_in_cents && (
               <div className="flex justify-between text-sm mt-1">
-                <span className="text-muted-foreground">Last Price</span>
+                <span className="text-muted-foreground">Current Price</span>
                 <span className="font-medium">
-                  {formatPrice(orderBook.last_price_in_cents)}
+                  {formatPrice(orderBook.current_price_in_cents)}
                 </span>
               </div>
             )}
@@ -125,7 +129,9 @@ export function OrderBook({ ticker }: OrderBookProps) {
 
           {/* Bids (Buy Orders) */}
           <div>
-            <h4 className="text-sm font-medium text-muted-foreground mb-2">Bids</h4>
+            <h4 className="text-sm font-medium text-muted-foreground mb-2">
+              Bids
+            </h4>
             <div className="space-y-1">
               {bids.length > 0 ? (
                 bids.map((bid, i) => (
@@ -142,7 +148,9 @@ export function OrderBook({ ticker }: OrderBookProps) {
                     <span className="text-green-500 font-medium z-10">
                       {formatPrice(bid.price)}
                     </span>
-                    <span className="text-center z-10">{formatNumber(bid.quantity)}</span>
+                    <span className="text-center z-10">
+                      {formatNumber(bid.quantity)}
+                    </span>
                     <span className="text-right text-muted-foreground z-10">
                       {formatPrice(bid.price * bid.quantity)}
                     </span>

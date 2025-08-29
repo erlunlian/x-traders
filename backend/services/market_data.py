@@ -48,6 +48,7 @@ async def get_order_book(ticker: str) -> OrderBookResult:
             bids=bids,
             asks=asks,
             last_price_in_cents=snapshot.last_price_in_cents,
+            current_price_in_cents=snapshot.current_price_in_cents,
         )
     except Exception as e:
         return OrderBookResult(success=False, error=str(e))
@@ -80,6 +81,7 @@ async def get_current_price(ticker: str) -> PriceInfo:
     return PriceInfo(
         ticker=ticker,
         last_price_in_cents=snapshot.last_price_in_cents,
+        current_price_in_cents=snapshot.current_price_in_cents,
         best_bid_in_cents=best_bid_in_cents,
         best_ask_in_cents=best_ask_in_cents,
         bid_size=bid_size,
@@ -106,6 +108,7 @@ async def get_all_prices() -> List[PriceInfo]:
                 PriceInfo(
                     ticker=ticker,
                     last_price_in_cents=None,
+                    current_price_in_cents=None,
                     best_bid_in_cents=None,
                     best_ask_in_cents=None,
                     bid_size=None,

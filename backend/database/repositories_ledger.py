@@ -105,3 +105,20 @@ class LedgerRepository:
             description=f"Initial deposit: ${initial_cash_in_cents/100:.2f}",
         )
         self.session.add(entry)
+
+    async def get_initial_cash_in_cents(self, trader_id: uuid.UUID) -> int:
+        """Fetch the initial cash balance from the earliest CASH ledger entry.
+
+        Returns 0 if no CASH entries exist for the trader.
+        """
+        result = await self.session.execute(
+            select(LedgerEntry)
+            .where(LedgerEntry.trader_id == trader_id)
+            .where(LedgerEntry.account == "CASH")
+            .order_by(LedgerEntry.created_at.asc())
+            .limit(1)
+        )
+        entry = result.scalar_one_or_none()
+        if entry is None:
+            return 0
+        return (entry.debit_in_cents or 0) - (entry.credit_in_cents or 0)

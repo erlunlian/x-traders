@@ -25,6 +25,7 @@ from models.schemas.agents import (
     UpdateAgentRequest,
 )
 from services.agents.agent_manager import agent_manager
+from services.market_data import get_current_price
 
 router = APIRouter()
 
@@ -126,12 +127,18 @@ async def get_agent_leaderboard() -> AgentLeaderboardResponse:
             # Get current cash balance
             balance = await ledger_repo.get_cash_balance_in_cents(agent.trader_id)
 
-            # Get positions and calculate total value
+            # Get positions and calculate total value using current market prices
             positions = await position_repo.get_all_positions(agent.trader_id)
 
-            # For now, we'll use a simplified calculation
-            # In a real system, we'd need to get current market prices
-            total_position_value = sum(pos.quantity * pos.avg_cost for pos in positions)
+            ticker_to_price: dict[str, int] = {}
+            for pos in positions:
+                if pos.ticker not in ticker_to_price:
+                    price_info = await get_current_price(pos.ticker)
+                    ticker_to_price[pos.ticker] = price_info.current_price_in_cents or 0
+
+            total_position_value = sum(
+                pos.quantity * ticker_to_price.get(pos.ticker, pos.avg_cost) for pos in positions
+            )
 
             total_assets_value = balance + total_position_value
 
@@ -139,9 +146,9 @@ async def get_agent_leaderboard() -> AgentLeaderboardResponse:
             trades = await trade_repo.get_trader_trades(agent.trader_id, limit=10000)
             total_trades = len(trades)
 
-            # Calculate profit/loss (assuming initial balance was $100,000)
-            initial_balance = 10000000  # $100,000 in cents
-            profit_loss = balance - initial_balance
+            # Calculate profit/loss using total assets (cash + positions) vs initial balance
+            initial_balance = await ledger_repo.get_initial_cash_in_cents(agent.trader_id)
+            profit_loss = total_assets_value - initial_balance
 
             entry = AgentLeaderboardEntry(
                 agent_id=agent.agent_id,
@@ -149,6 +156,7 @@ async def get_agent_leaderboard() -> AgentLeaderboardResponse:
                 trader_id=agent.trader_id,
                 llm_model=agent.llm_model,
                 is_active=agent.is_active,
+                initial_balance_in_cents=initial_balance,
                 balance_in_cents=balance,
                 total_assets_value_in_cents=total_assets_value,
                 total_trades_executed=total_trades,

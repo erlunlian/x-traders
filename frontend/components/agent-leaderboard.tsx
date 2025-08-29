@@ -1,10 +1,24 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
+import { AgentDetailDialog } from "@/components/agent-detail-dialog";
+import { CreateAgentDialog } from "@/components/create-agent-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -12,34 +26,34 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from "@/components/ui/table";
+import { apiClient } from "@/lib/api/client";
+import type {
+  AgentLeaderboardEntry,
+  AgentLeaderboardResponse,
+} from "@/types/api";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { 
-  Users, 
-  DollarSign, 
-  TrendingUp, 
-  TrendingDown,
-  Activity, 
-  Bot, 
-  Plus,
-  ArrowUpDown,
-  ArrowUp,
+  Activity,
   ArrowDown,
-  Zap
-} from 'lucide-react';
-import { apiClient } from '@/lib/api/client';
-import { AgentDetailDialog } from '@/components/agent-detail-dialog';
-import { CreateAgentDialog } from '@/components/create-agent-dialog';
-import type { AgentLeaderboardEntry, AgentLeaderboardResponse } from '@/types/api';
+  ArrowUp,
+  ArrowUpDown,
+  Bot,
+  Plus,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 
-type SortField = 'name' | 'total_assets' | 'balance' | 'trades' | 'decisions' | 'profit_loss' | 'created_at';
-type SortDirection = 'asc' | 'desc';
+type SortField =
+  | "name"
+  | "total_assets"
+  | "balance"
+  | "initial_balance"
+  | "trades"
+  | "decisions"
+  | "profit_loss"
+  | "created_at";
+type SortDirection = "asc" | "desc";
 
 export function AgentLeaderboard() {
   const [agents, setAgents] = useState<AgentLeaderboardEntry[]>([]);
@@ -48,8 +62,8 @@ export function AgentLeaderboard() {
   const [selectedTraderId, setSelectedTraderId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [createAgentOpen, setCreateAgentOpen] = useState(false);
-  const [sortField, setSortField] = useState<SortField>('total_assets');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [sortField, setSortField] = useState<SortField>("total_assets");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   useEffect(() => {
     fetchAgents();
@@ -58,11 +72,13 @@ export function AgentLeaderboard() {
   const fetchAgents = async () => {
     try {
       setLoading(true);
-      const data = await apiClient.get<AgentLeaderboardResponse>('/api/agents/leaderboard');
+      const data = await apiClient.get<AgentLeaderboardResponse>(
+        "/api/agents/leaderboard"
+      );
       setAgents(data.agents);
     } catch (err) {
-      setError('Failed to load agent leaderboard');
-      console.error('Error fetching agent leaderboard:', err);
+      setError("Failed to load agent leaderboard");
+      console.error("Error fetching agent leaderboard:", err);
     } finally {
       setLoading(false);
     }
@@ -71,30 +87,33 @@ export function AgentLeaderboard() {
   const formatCurrency = (cents: number) => {
     const isNegative = cents < 0;
     const absValue = Math.abs(cents);
-    return `${isNegative ? '-' : ''}$${(absValue / 100).toLocaleString('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
+    return `${isNegative ? "-" : ""}$${(absValue / 100).toLocaleString(
+      "en-US",
+      {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }
+    )}`;
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
+    return new Date(dateString).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
     });
   };
 
   const formatModel = (model: string) => {
-    return model.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+    return model.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
   };
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
     } else {
       setSortField(field);
-      setSortDirection('desc');
+      setSortDirection("desc");
     }
   };
 
@@ -103,31 +122,35 @@ export function AgentLeaderboard() {
     let bValue: any;
 
     switch (sortField) {
-      case 'name':
+      case "name":
         aValue = a.name.toLowerCase();
         bValue = b.name.toLowerCase();
         break;
-      case 'total_assets':
+      case "total_assets":
         aValue = a.total_assets_value_in_cents;
         bValue = b.total_assets_value_in_cents;
         break;
-      case 'balance':
+      case "balance":
         aValue = a.balance_in_cents;
         bValue = b.balance_in_cents;
         break;
-      case 'trades':
+      case "initial_balance":
+        aValue = a.initial_balance_in_cents;
+        bValue = b.initial_balance_in_cents;
+        break;
+      case "trades":
         aValue = a.total_trades_executed;
         bValue = b.total_trades_executed;
         break;
-      case 'decisions':
+      case "decisions":
         aValue = a.total_decisions;
         bValue = b.total_decisions;
         break;
-      case 'profit_loss':
+      case "profit_loss":
         aValue = a.profit_loss_in_cents;
         bValue = b.profit_loss_in_cents;
         break;
-      case 'created_at':
+      case "created_at":
         aValue = new Date(a.created_at).getTime();
         bValue = new Date(b.created_at).getTime();
         break;
@@ -135,8 +158,8 @@ export function AgentLeaderboard() {
         return 0;
     }
 
-    if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
-    if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+    if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
+    if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
     return 0;
   });
 
@@ -144,9 +167,11 @@ export function AgentLeaderboard() {
     if (sortField !== field) {
       return <ArrowUpDown className="ml-1 h-3 w-3 text-muted-foreground" />;
     }
-    return sortDirection === 'asc' 
-      ? <ArrowUp className="ml-1 h-3 w-3" />
-      : <ArrowDown className="ml-1 h-3 w-3" />;
+    return sortDirection === "asc" ? (
+      <ArrowUp className="ml-1 h-3 w-3" />
+    ) : (
+      <ArrowDown className="ml-1 h-3 w-3" />
+    );
   };
 
   const handleAgentClick = (traderId: string) => {
@@ -180,13 +205,27 @@ export function AgentLeaderboard() {
               <TableBody>
                 {[...Array(5)].map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell><Skeleton className="h-4 w-8" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-8" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-32" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-24" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-24" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-16" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-20" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-16" />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -221,7 +260,10 @@ export function AgentLeaderboard() {
             </p>
           </div>
           <div className="flex items-center gap-4">
-            <Select value={sortField} onValueChange={(value) => setSortField(value as SortField)}>
+            <Select
+              value={sortField}
+              onValueChange={(value) => setSortField(value as SortField)}
+            >
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Sort by..." />
               </SelectTrigger>
@@ -229,6 +271,7 @@ export function AgentLeaderboard() {
                 <SelectItem value="total_assets">Total Assets</SelectItem>
                 <SelectItem value="profit_loss">Profit/Loss</SelectItem>
                 <SelectItem value="trades">Trades Executed</SelectItem>
+                <SelectItem value="initial_balance">Initial Balance</SelectItem>
                 <SelectItem value="decisions">Decisions Made</SelectItem>
                 <SelectItem value="balance">Cash Balance</SelectItem>
                 <SelectItem value="name">Name</SelectItem>
@@ -248,7 +291,8 @@ export function AgentLeaderboard() {
           <CardHeader>
             <CardTitle>No Agents Yet</CardTitle>
             <CardDescription>
-              No AI agents have been created. Click "Create Agent" to add your first AI trader.
+              No AI agents have been created. Click "Create Agent" to add your
+              first AI trader.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -264,10 +308,10 @@ export function AgentLeaderboard() {
                       variant="ghost"
                       size="sm"
                       className="h-8 px-2 hover:bg-transparent"
-                      onClick={() => handleSort('name')}
+                      onClick={() => handleSort("name")}
                     >
                       Agent
-                      {getSortIcon('name')}
+                      {getSortIcon("name")}
                     </Button>
                   </TableHead>
                   <TableHead className="text-right">
@@ -275,10 +319,10 @@ export function AgentLeaderboard() {
                       variant="ghost"
                       size="sm"
                       className="h-8 px-2 hover:bg-transparent"
-                      onClick={() => handleSort('total_assets')}
+                      onClick={() => handleSort("total_assets")}
                     >
                       Total Assets
-                      {getSortIcon('total_assets')}
+                      {getSortIcon("total_assets")}
                     </Button>
                   </TableHead>
                   <TableHead className="text-right">
@@ -286,10 +330,21 @@ export function AgentLeaderboard() {
                       variant="ghost"
                       size="sm"
                       className="h-8 px-2 hover:bg-transparent"
-                      onClick={() => handleSort('balance')}
+                      onClick={() => handleSort("initial_balance")}
+                    >
+                      Initial Balance
+                      {getSortIcon("initial_balance")}
+                    </Button>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 hover:bg-transparent"
+                      onClick={() => handleSort("balance")}
                     >
                       Cash Balance
-                      {getSortIcon('balance')}
+                      {getSortIcon("balance")}
                     </Button>
                   </TableHead>
                   <TableHead className="text-center">
@@ -297,10 +352,10 @@ export function AgentLeaderboard() {
                       variant="ghost"
                       size="sm"
                       className="h-8 px-2 hover:bg-transparent"
-                      onClick={() => handleSort('trades')}
+                      onClick={() => handleSort("trades")}
                     >
                       Trades
-                      {getSortIcon('trades')}
+                      {getSortIcon("trades")}
                     </Button>
                   </TableHead>
                   <TableHead className="text-center">
@@ -308,10 +363,10 @@ export function AgentLeaderboard() {
                       variant="ghost"
                       size="sm"
                       className="h-8 px-2 hover:bg-transparent"
-                      onClick={() => handleSort('decisions')}
+                      onClick={() => handleSort("decisions")}
                     >
                       Decisions
-                      {getSortIcon('decisions')}
+                      {getSortIcon("decisions")}
                     </Button>
                   </TableHead>
                   <TableHead className="text-right">
@@ -319,10 +374,10 @@ export function AgentLeaderboard() {
                       variant="ghost"
                       size="sm"
                       className="h-8 px-2 hover:bg-transparent"
-                      onClick={() => handleSort('profit_loss')}
+                      onClick={() => handleSort("profit_loss")}
                     >
                       P&L
-                      {getSortIcon('profit_loss')}
+                      {getSortIcon("profit_loss")}
                     </Button>
                   </TableHead>
                   <TableHead>Model</TableHead>
@@ -331,7 +386,7 @@ export function AgentLeaderboard() {
               </TableHeader>
               <TableBody>
                 {sortedAgents.map((agent, index) => (
-                  <TableRow 
+                  <TableRow
                     key={agent.agent_id}
                     className="cursor-pointer hover:bg-muted/50"
                     onClick={() => handleAgentClick(agent.trader_id)}
@@ -354,6 +409,9 @@ export function AgentLeaderboard() {
                       {formatCurrency(agent.total_assets_value_in_cents)}
                     </TableCell>
                     <TableCell className="text-right font-mono">
+                      {formatCurrency(agent.initial_balance_in_cents)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
                       {formatCurrency(agent.balance_in_cents)}
                     </TableCell>
                     <TableCell className="text-center">
@@ -367,25 +425,34 @@ export function AgentLeaderboard() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className={`flex items-center justify-end gap-1 font-mono ${
-                        agent.profit_loss_in_cents > 0 
-                          ? 'text-green-600 dark:text-green-400' 
-                          : agent.profit_loss_in_cents < 0
-                          ? 'text-red-600 dark:text-red-400'
-                          : 'text-muted-foreground'
-                      }`}>
-                        {agent.profit_loss_in_cents > 0 && <TrendingUp className="h-3 w-3" />}
-                        {agent.profit_loss_in_cents < 0 && <TrendingDown className="h-3 w-3" />}
+                      <div
+                        className={`flex items-center justify-end gap-1 font-mono ${
+                          agent.profit_loss_in_cents > 0
+                            ? "text-green-600 dark:text-green-400"
+                            : agent.profit_loss_in_cents < 0
+                            ? "text-red-600 dark:text-red-400"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {agent.profit_loss_in_cents > 0 && (
+                          <TrendingUp className="h-3 w-3" />
+                        )}
+                        {agent.profit_loss_in_cents < 0 && (
+                          <TrendingDown className="h-3 w-3" />
+                        )}
                         {formatCurrency(agent.profit_loss_in_cents)}
                       </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-xs">
-                        {formatModel(agent.llm_model).split(' ').slice(0, 2).join(' ')}
+                        {formatModel(agent.llm_model)
+                          .split(" ")
+                          .slice(0, 2)
+                          .join(" ")}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge 
+                      <Badge
                         variant={agent.is_active ? "default" : "secondary"}
                         className="gap-1"
                       >
@@ -395,7 +462,7 @@ export function AgentLeaderboard() {
                             Active
                           </>
                         ) : (
-                          'Inactive'
+                          "Inactive"
                         )}
                       </Badge>
                     </TableCell>
@@ -406,13 +473,13 @@ export function AgentLeaderboard() {
           </CardContent>
         </Card>
       )}
-      
+
       <AgentDetailDialog
         traderId={selectedTraderId}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
       />
-      
+
       <CreateAgentDialog
         open={createAgentOpen}
         onOpenChange={setCreateAgentOpen}

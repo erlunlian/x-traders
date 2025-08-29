@@ -297,6 +297,9 @@ async def check_order_book(**kwargs) -> OrderBookData:
                 last_price_dollars=(
                     result.last_price_in_cents / 100 if result.last_price_in_cents else None
                 ),
+                current_price_dollars=(
+                    result.current_price_in_cents / 100 if result.current_price_in_cents else None
+                ),
             )
         else:
             return OrderBookData(success=False, error=result.error)

@@ -1,6 +1,6 @@
 export interface CurrentPrice {
   ticker: string;
-  last_price_in_cents: number | null;
+  current_price_in_cents: number | null;
   best_bid_in_cents: number | null;
   best_ask_in_cents: number | null;
   bid_size: number | null;
@@ -27,7 +27,7 @@ export interface OrderBookSnapshot {
   ticker: string;
   bids: Record<string, number>; // price_in_cents -> quantity
   asks: Record<string, number>; // price_in_cents -> quantity
-  last_price_in_cents: number | null;
+  current_price_in_cents: number | null;
   timestamp: string;
 }
 
@@ -66,7 +66,6 @@ export interface AgentThought {
   created_at: string;
 }
 
-
 export interface AgentStats {
   agent_id: string;
   name: string;
@@ -104,6 +103,7 @@ export interface AgentLeaderboardEntry {
   trader_id: string;
   llm_model: string;
   is_active: boolean;
+  initial_balance_in_cents: number;
   balance_in_cents: number;
   total_assets_value_in_cents: number;
   total_trades_executed: number;

@@ -2,8 +2,9 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from uuid import UUID
 
-from enums import MarketDataEventType, OrderType, Side
 from pydantic import BaseModel, ConfigDict, Field
+
+from enums import MarketDataEventType, OrderType, Side
 
 
 class OrderRequest(BaseModel):
@@ -62,6 +63,7 @@ class OrderBookSnapshot(BaseModel):
     ticker: str
     bids: Dict[int, int]  # price_in_cents -> total_quantity
     asks: Dict[int, int]  # price_in_cents -> total_quantity
+    current_price_in_cents: Optional[int] = None
     last_price_in_cents: Optional[int] = None
     timestamp: datetime
 

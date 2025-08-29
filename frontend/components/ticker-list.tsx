@@ -1,18 +1,22 @@
-'use client';
+"use client";
 
-import { useQuery } from '@tanstack/react-query';
-import { marketService } from '@/services/market';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { TrendingUp, TrendingDown } from 'lucide-react';
-import { formatPrice } from '@/lib/utils';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatPrice } from "@/lib/utils";
+import { marketService } from "@/services/market";
+import { useQuery } from "@tanstack/react-query";
+import { TrendingDown, TrendingUp } from "lucide-react";
 
 interface TickerListProps {
   onTickerClick: (ticker: string) => void;
 }
 
 export function TickerList({ onTickerClick }: TickerListProps) {
-  const { data: prices, isLoading, error } = useQuery({
-    queryKey: ['prices'],
+  const {
+    data: prices,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["prices"],
     queryFn: marketService.getAllPrices,
     refetchInterval: 5000, // Refresh every 5 seconds
   });
@@ -59,11 +63,11 @@ export function TickerList({ onTickerClick }: TickerListProps) {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-2xl font-bold">
-                  {formatPrice(price.last_price_in_cents)}
+                  {formatPrice(price.current_price_in_cents)}
                 </span>
-                {price.last_price_in_cents && price.best_bid_in_cents && (
+                {price.current_price_in_cents && price.best_bid_in_cents && (
                   <div className="flex items-center">
-                    {price.last_price_in_cents > price.best_bid_in_cents ? (
+                    {price.current_price_in_cents > price.best_bid_in_cents ? (
                       <TrendingUp className="h-4 w-4 text-green-500" />
                     ) : (
                       <TrendingDown className="h-4 w-4 text-red-500" />
@@ -71,7 +75,7 @@ export function TickerList({ onTickerClick }: TickerListProps) {
                   </div>
                 )}
               </div>
-              
+
               <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
                 <div>
                   <span className="block">Bid</span>

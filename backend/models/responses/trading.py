@@ -97,6 +97,7 @@ class PriceInfo(BaseModel):
 
     ticker: str
     last_price_in_cents: Optional[int]
+    current_price_in_cents: Optional[int]
     best_bid_in_cents: Optional[int]
     best_ask_in_cents: Optional[int]
     bid_size: Optional[int]
@@ -119,6 +120,7 @@ class OrderBookResult(BaseModel):
     bids: List[OrderBookLevel] = Field(default_factory=list)
     asks: List[OrderBookLevel] = Field(default_factory=list)
     last_price_in_cents: Optional[int] = None
+    current_price_in_cents: Optional[int] = None
     error: Optional[str] = None
 
 

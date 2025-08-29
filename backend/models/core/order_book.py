@@ -111,10 +111,24 @@ class OrderBook:
         for price, orders in self.asks.items():
             asks[price] = sum(o.remaining_quantity for o in orders)
 
+        # Compute mid price if both sides exist
+        best_bid = self.get_best_bid()
+        best_ask = self.get_best_ask()
+        current_price = None
+        if best_bid and best_ask:
+            current_price = (best_bid[0] + best_ask[0]) // 2
+        elif best_bid:
+            current_price = best_bid[0]
+        elif best_ask:
+            current_price = best_ask[0]
+        else:
+            current_price = self.last_price_in_cents
+
         return OrderBookSnapshot(
             ticker=self.ticker,
             bids=bids,
             asks=asks,
+            current_price_in_cents=current_price,
             last_price_in_cents=self.last_price_in_cents,
             timestamp=datetime.now(timezone.utc),
         )

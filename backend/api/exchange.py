@@ -6,12 +6,13 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
+
 from database import async_session
 from database.repositories import TradeRepository
 from engine import order_router
-from fastapi import APIRouter, HTTPException, Query
 from models.schemas import OrderBookSnapshot
-from pydantic import BaseModel
 
 router = APIRouter()
 
@@ -32,7 +33,7 @@ class CurrentPrice(BaseModel):
     """Current price information"""
 
     ticker: str
-    last_price_in_cents: Optional[int]
+    current_price_in_cents: Optional[int]
     best_bid_in_cents: Optional[int]
     best_ask_in_cents: Optional[int]
     bid_size: Optional[int]
@@ -58,7 +59,7 @@ async def get_current_price(ticker: str) -> CurrentPrice:
 
     return CurrentPrice(
         ticker=ticker,
-        last_price_in_cents=snapshot.last_price_in_cents,
+        current_price_in_cents=snapshot.current_price_in_cents,
         best_bid_in_cents=best_bid_in_cents,
         best_ask_in_cents=best_ask_in_cents,
         bid_size=bid_size,
@@ -84,7 +85,7 @@ async def get_all_prices() -> List[CurrentPrice]:
         prices.append(
             CurrentPrice(
                 ticker=ticker,
-                last_price_in_cents=snapshot.last_price_in_cents,
+                current_price_in_cents=snapshot.current_price_in_cents,
                 best_bid_in_cents=best_bid_in_cents,
                 best_ask_in_cents=best_ask_in_cents,
                 bid_size=bid_size,
@@ -164,11 +165,11 @@ async def get_price_history(
 
     # Map time ranges to PostgreSQL intervals and number of periods
     range_config = {
-        "1d": ("1 hour", 24),     # 24 hourly candles for last day
-        "1w": ("6 hours", 28),     # 28 6-hour candles for last week
-        "1m": ("1 day", 30),       # 30 daily candles for last month
-        "6m": ("1 week", 26),      # 26 weekly candles for last 6 months
-        "1y": ("1 week", 52),      # 52 weekly candles for last year
+        "1d": ("1 hour", 24),  # 24 hourly candles for last day
+        "1w": ("6 hours", 28),  # 28 6-hour candles for last week
+        "1m": ("1 day", 30),  # 30 daily candles for last month
+        "6m": ("1 week", 26),  # 26 weekly candles for last 6 months
+        "1y": ("1 week", 52),  # 52 weekly candles for last year
     }
 
     # Get interval and periods, default to 1 day if invalid range
@@ -188,12 +189,12 @@ async def get_price_history(
     for candle in ohlc_data:
         history.append(
             PriceHistoryPoint(
-                timestamp=candle['timestamp'],
-                open=candle['open'],
-                high=candle['high'],
-                low=candle['low'],
-                close=candle['close'],
-                volume=candle['volume'],
+                timestamp=candle["timestamp"],
+                open=candle["open"],
+                high=candle["high"],
+                low=candle["low"],
+                close=candle["close"],
+                volume=candle["volume"],
             )
         )
 

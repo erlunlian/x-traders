@@ -64,7 +64,8 @@ usage() {
     echo "  db current            Show current migration version"
     echo "  db reset              Drop and recreate all tables (CAUTION!)"
     echo ""
-    echo "  treasury seed         Create/ensure treasury and list $1 asks"
+    echo "  treasury seed         Create/ensure treasury and list \$1 asks"
+    echo "  agents seed [--count N]  Seed N AI agents with \$10k and personalities"
     echo ""
     echo "  tweets backfill       Fetch 100 tweets per ticker from API"
     echo "  tweets export         Export database tweets to JSON backup"
@@ -328,6 +329,29 @@ tweets_cmd() {
     esac
 }
 
+# Agents commands
+agents_cmd() {
+    case "$1" in
+        seed)
+            echo -e "${GREEN}Seeding AI agents...${NC}"
+            cd "$BACKEND_DIR"
+            activate_venv || exit 1
+            shift
+            # Forward optional --count argument(s)
+            if [ $# -gt 0 ]; then
+                python -m scripts.seed_agents "$@"
+            else
+                python -m scripts.seed_agents
+            fi
+            ;;
+        *)
+            echo -e "${RED}Unknown agents subcommand: $1${NC}"
+            echo "Available: seed"
+            exit 1
+            ;;
+    esac
+}
+
 # Treasury commands
 treasury_cmd() {
     case "$1" in
@@ -555,6 +579,9 @@ case "$1" in
         ;;
     tweets)
         tweets_cmd "${@:2}"
+        ;;
+    agents)
+        agents_cmd "${@:2}"
         ;;
     treasury)
         treasury_cmd "$2"
