@@ -15,8 +15,10 @@ export default function FeedPage() {
       try {
         const data = await socialService.getAllPosts(50);
         setPosts(data);
-      } catch (e: any) {
-        setError(e?.message || "Failed to load feed");
+      } catch (e: unknown) {
+        const errorMessage =
+          e instanceof Error ? e.message : "Failed to load feed";
+        setError(errorMessage);
       }
     })();
   }, []);

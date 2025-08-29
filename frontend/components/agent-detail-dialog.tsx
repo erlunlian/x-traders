@@ -32,7 +32,6 @@ import { cn } from "@/lib/utils";
 import type {
   Agent,
   AgentMemoryState,
-  AgentStats,
   AgentThought,
   ThoughtListResponse,
 } from "@/types/api";
@@ -60,7 +59,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface Position {
   ticker: string;
@@ -132,7 +131,6 @@ export function AgentDetailDialog({
   const [trader, setTrader] = useState<TraderDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [agentStats, setAgentStats] = useState<AgentStats | null>(null);
   const [agentThoughts, setAgentThoughts] = useState<AgentThought[]>([]);
   const [togglingAgent, setTogglingAgent] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -141,19 +139,65 @@ export function AgentDetailDialog({
   const [saving, setSaving] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [loadingActivities, setLoadingActivities] = useState(false);
-  const [expandedItem, setExpandedItem] = useState<string | null>(null);
   const [agentMemory, setAgentMemory] = useState<AgentMemoryState | null>(null);
-  const [loadingMemory, setLoadingMemory] = useState(false);
   const [refreshingActivities, setRefreshingActivities] = useState(false);
   const activityEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const fetchAvailableModels = useCallback(async () => {
+    try {
+      const models = await apiClient.get<LLMModel[]>(
+        "/api/agents/models/available"
+      );
+      setAvailableModels(models);
+    } catch (err) {
+      console.error("Error fetching models:", err);
+    }
+  }, []);
+
+  const fetchTraderDetail = useCallback(async () => {
+    if (!traderId) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await apiClient.get<TraderDetail>(
+        `/api/traders/${traderId}`
+      );
+      setTrader(data);
+
+      // If trader has an agent, fetch agent stats, activity, and memory
+      if (data.agent) {
+        try {
+          const [thoughts, memory] = await Promise.all([
+            apiClient.get<ThoughtListResponse>(
+              `/api/agents/${data.agent.agent_id}/thoughts?limit=50`
+            ),
+            apiClient.get<AgentMemoryState>(
+              `/api/agents/${data.agent.agent_id}/memory`
+            ),
+          ]);
+          // Reverse thoughts to show oldest first (newest at bottom)
+          setAgentThoughts(thoughts.thoughts.reverse());
+          setAgentMemory(memory);
+        } catch (err) {
+          console.error("Error fetching agent data:", err);
+        }
+      }
+    } catch (err) {
+      setError("Failed to load trader details");
+      console.error("Error fetching trader:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [traderId]);
 
   useEffect(() => {
     if (traderId && open) {
       fetchTraderDetail();
       fetchAvailableModels();
     }
-  }, [traderId, open]);
+  }, [traderId, open, fetchTraderDetail, fetchAvailableModels]);
 
   useEffect(() => {
     // Reset state when dialog closes
@@ -161,7 +205,6 @@ export function AgentDetailDialog({
       setEditMode(false);
       setEditedAgent(null);
       setActiveSection("overview");
-      setExpandedItem(null);
     }
   }, [open]);
 
@@ -177,47 +220,6 @@ export function AgentDetailDialog({
       activityEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [agentThoughts.length, activeSection]);
-
-  const fetchTraderDetail = async () => {
-    if (!traderId) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await apiClient.get<TraderDetail>(
-        `/api/traders/${traderId}`
-      );
-      setTrader(data);
-
-      // If trader has an agent, fetch agent stats, activity, and memory
-      if (data.agent) {
-        try {
-          const [stats, thoughts, memory] = await Promise.all([
-            apiClient.get<AgentStats>(
-              `/api/agents/${data.agent.agent_id}/stats`
-            ),
-            apiClient.get<ThoughtListResponse>(
-              `/api/agents/${data.agent.agent_id}/thoughts?limit=50`
-            ),
-            apiClient.get<AgentMemoryState>(
-              `/api/agents/${data.agent.agent_id}/memory`
-            ),
-          ]);
-          setAgentStats(stats);
-          // Reverse thoughts to show oldest first (newest at bottom)
-          setAgentThoughts(thoughts.thoughts.reverse());
-          setAgentMemory(memory);
-        } catch (err) {
-          console.error("Error fetching agent data:", err);
-        }
-      }
-    } catch (err) {
-      setError("Failed to load trader details");
-      console.error("Error fetching trader:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchMoreActivities = async () => {
     if (!trader?.agent || loadingActivities) return;
@@ -292,17 +294,6 @@ export function AgentDetailDialog({
       hour: "2-digit",
       minute: "2-digit",
     });
-  };
-
-  const fetchAvailableModels = async () => {
-    try {
-      const models = await apiClient.get<LLMModel[]>(
-        "/api/agents/models/available"
-      );
-      setAvailableModels(models);
-    } catch (err) {
-      console.error("Error fetching models:", err);
-    }
   };
 
   const toggleAgent = async () => {
@@ -878,7 +869,7 @@ export function AgentDetailDialog({
                 Agent Activity Log
               </h3>
               <p className="text-sm text-muted-foreground mt-1">
-                Agent's thought process and decision-making history
+                Agent&apos;s thought process and decision-making history
               </p>
             </div>
             <Button

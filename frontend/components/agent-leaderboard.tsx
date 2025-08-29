@@ -125,33 +125,6 @@ export function AgentLeaderboard() {
     }
   };
 
-  const toggleOne = async (agentId: string) => {
-    try {
-      setBusy(true);
-      await apiClient.post<AgentLeaderboardEntry>(
-        `/api/agents/${agentId}/toggle`
-      );
-      await fetchAgents();
-    } catch (e) {
-      console.error("Toggle failed", e);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const deleteOne = async (agentId: string, trades: number) => {
-    if (trades > 0) return;
-    try {
-      setBusy(true);
-      await apiClient.delete(`/api/agents/${agentId}`);
-      await fetchAgents();
-    } catch (e) {
-      console.error("Delete failed", e);
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const formatCurrency = (cents: number) => {
     const isNegative = cents < 0;
     const absValue = Math.abs(cents);
@@ -162,14 +135,6 @@ export function AgentLeaderboard() {
         maximumFractionDigits: 2,
       }
     )}`;
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
   };
 
   const formatModel = (model: string) => {
@@ -186,8 +151,8 @@ export function AgentLeaderboard() {
   };
 
   const sortedAgents = [...agents].sort((a, b) => {
-    let aValue: any;
-    let bValue: any;
+    let aValue: string | number;
+    let bValue: string | number;
 
     switch (sortField) {
       case "name":
@@ -369,8 +334,8 @@ export function AgentLeaderboard() {
           <CardHeader>
             <CardTitle>No Agents Yet</CardTitle>
             <CardDescription>
-              No AI agents have been created. Click "Create Agent" to add your
-              first AI trader.
+              No AI agents have been created. Click &quot;Create Agent&quot; to
+              add your first AI trader.
             </CardDescription>
           </CardHeader>
         </Card>

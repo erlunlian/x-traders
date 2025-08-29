@@ -19,14 +19,11 @@ export function JsonViewer({
 }: JsonViewerProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
 
-  // Try to parse and format JSON
   let formattedData = data;
-  let isValidJson = false;
 
   try {
     const parsed = JSON.parse(data);
     formattedData = JSON.stringify(parsed, null, 2);
-    isValidJson = true;
   } catch {
     // If not valid JSON, show as-is
     formattedData = data;

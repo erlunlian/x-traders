@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -8,21 +8,21 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { apiClient } from '@/lib/api/client';
-import type { LLMModel, CreateAgentRequest } from '@/types/api';
-import { Bot, Loader2 } from 'lucide-react';
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { apiClient } from "@/lib/api/client";
+import type { CreateAgentRequest, LLMModel } from "@/types/api";
+import { Bot, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface CreateAgentDialogProps {
   open: boolean;
@@ -30,14 +30,18 @@ interface CreateAgentDialogProps {
   onAgentCreated?: () => void;
 }
 
-export function CreateAgentDialog({ open, onOpenChange, onAgentCreated }: CreateAgentDialogProps) {
+export function CreateAgentDialog({
+  open,
+  onOpenChange,
+  onAgentCreated,
+}: CreateAgentDialogProps) {
   const [loading, setLoading] = useState(false);
   const [models, setModels] = useState<LLMModel[]>([]);
   const [formData, setFormData] = useState<Partial<CreateAgentRequest>>({
-    name: '',
-    llm_model: '',
+    name: "",
+    llm_model: "",
     temperature: 0.7,
-    personality_prompt: '',
+    personality_prompt: "",
     is_active: true,
     initial_balance_in_cents: 10000000, // Default $100,000
   });
@@ -51,10 +55,12 @@ export function CreateAgentDialog({ open, onOpenChange, onAgentCreated }: Create
 
   const fetchModels = async () => {
     try {
-      const data = await apiClient.get<LLMModel[]>('/api/agents/models/available');
+      const data = await apiClient.get<LLMModel[]>(
+        "/api/agents/models/available"
+      );
       setModels(data);
     } catch (err) {
-      console.error('Error fetching models:', err);
+      console.error("Error fetching models:", err);
     }
   };
 
@@ -63,30 +69,32 @@ export function CreateAgentDialog({ open, onOpenChange, onAgentCreated }: Create
     setError(null);
 
     if (!formData.name || !formData.llm_model || !formData.personality_prompt) {
-      setError('Please fill in all required fields');
+      setError("Please fill in all required fields");
       return;
     }
 
     try {
       setLoading(true);
-      await apiClient.post('/api/agents/', formData);
-      
+      await apiClient.post("/api/agents/", formData);
+
       // Reset form
       setFormData({
-        name: '',
-        llm_model: '',
+        name: "",
+        llm_model: "",
         temperature: 0.7,
-        personality_prompt: '',
+        personality_prompt: "",
         is_active: true,
         initial_balance_in_cents: 10000000,
       });
-      
+
       onOpenChange(false);
       if (onAgentCreated) {
         onAgentCreated();
       }
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to create agent');
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to create agent";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -106,7 +114,8 @@ export function CreateAgentDialog({ open, onOpenChange, onAgentCreated }: Create
               Create AI Agent
             </DialogTitle>
             <DialogDescription>
-              Configure a new AI trading agent to analyze tweets and make trading decisions.
+              Configure a new AI trading agent to analyze tweets and make
+              trading decisions.
             </DialogDescription>
           </DialogHeader>
 
@@ -123,7 +132,9 @@ export function CreateAgentDialog({ open, onOpenChange, onAgentCreated }: Create
                 id="name"
                 placeholder="e.g., Market Analyzer Bot"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
                 disabled={loading}
               />
             </div>
@@ -137,15 +148,19 @@ export function CreateAgentDialog({ open, onOpenChange, onAgentCreated }: Create
                   type="number"
                   placeholder="100000"
                   value={(formData.initial_balance_in_cents || 0) / 100}
-                  onChange={(e) => setFormData({ 
-                    ...formData, 
-                    initial_balance_in_cents: Math.round(parseFloat(e.target.value || '0') * 100)
-                  })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      initial_balance_in_cents: Math.round(
+                        parseFloat(e.target.value || "0") * 100
+                      ),
+                    })
+                  }
                   disabled={loading}
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                Starting balance for the agent's trading account
+                Starting balance for the agent&apos;s trading account
               </p>
             </div>
 
@@ -153,7 +168,9 @@ export function CreateAgentDialog({ open, onOpenChange, onAgentCreated }: Create
               <Label htmlFor="model">LLM Model</Label>
               <Select
                 value={formData.llm_model}
-                onValueChange={(value) => setFormData({ ...formData, llm_model: value })}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, llm_model: value })
+                }
                 disabled={loading}
               >
                 <SelectTrigger id="model">
@@ -180,7 +197,12 @@ export function CreateAgentDialog({ open, onOpenChange, onAgentCreated }: Create
                 max="1"
                 step="0.1"
                 value={formData.temperature}
-                onChange={(e) => setFormData({ ...formData, temperature: parseFloat(e.target.value) })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    temperature: parseFloat(e.target.value),
+                  })
+                }
                 className="w-full"
                 disabled={loading}
               />
@@ -196,12 +218,18 @@ export function CreateAgentDialog({ open, onOpenChange, onAgentCreated }: Create
                 id="prompt"
                 placeholder="A cautious trader who values stability over risky gains, prefers established accounts with strong fundamentals..."
                 value={formData.personality_prompt}
-                onChange={(e) => setFormData({ ...formData, personality_prompt: e.target.value })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    personality_prompt: e.target.value,
+                  })
+                }
                 rows={6}
                 disabled={loading}
               />
               <p className="text-xs text-muted-foreground">
-                Define the agent's unique personality and trading style. The system will provide standard trading instructions.
+                Define the agent&apos;s unique personality and trading style.
+                The system will provide standard trading instructions.
               </p>
             </div>
 
@@ -210,7 +238,9 @@ export function CreateAgentDialog({ open, onOpenChange, onAgentCreated }: Create
                 type="checkbox"
                 id="active"
                 checked={formData.is_active}
-                onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                onChange={(e) =>
+                  setFormData({ ...formData, is_active: e.target.checked })
+                }
                 className="h-4 w-4"
                 disabled={loading}
               />

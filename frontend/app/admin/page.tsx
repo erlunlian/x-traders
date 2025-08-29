@@ -32,8 +32,10 @@ export default function AdminPage() {
       );
       setTraderId(res.trader_id);
       setMessage(`Created trader: ${res.trader_id}`);
-    } catch (e: any) {
-      setMessage(e?.message || "Failed to create trader");
+    } catch (e: unknown) {
+      const errorMessage =
+        e instanceof Error ? e.message : "Failed to create trader";
+      setMessage(errorMessage);
     }
   };
 
@@ -54,8 +56,10 @@ export default function AdminPage() {
         payload
       );
       setMessage(`Order submitted: ${res.order_id}`);
-    } catch (e: any) {
-      setMessage(e?.message || "Failed to submit order");
+    } catch (e: unknown) {
+      const errorMessage =
+        e instanceof Error ? e.message : "Failed to submit order";
+      setMessage(errorMessage);
     }
   };
 

@@ -1,58 +1,62 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatPrice } from "@/lib/utils";
+import { marketService } from "@/services/market";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
+import { useState } from "react";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
   Area,
   AreaChart,
-} from 'recharts';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { formatPrice } from '@/lib/utils';
-import { marketService } from '@/services/market';
-import { Loader2 } from 'lucide-react';
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 interface PriceChartProps {
   ticker: string;
 }
 
 const timeRanges = [
-  { label: '1D', value: '1d' },
-  { label: '1W', value: '1w' },
-  { label: '1M', value: '1m' },
-  { label: '6M', value: '6m' },
-  { label: '1Y', value: '1y' },
+  { label: "1D", value: "1d" },
+  { label: "1W", value: "1w" },
+  { label: "1M", value: "1m" },
+  { label: "6M", value: "6m" },
+  { label: "1Y", value: "1y" },
 ] as const;
 
 export function PriceChart({ ticker }: PriceChartProps) {
-  const [selectedRange, setSelectedRange] = useState<'1d' | '1w' | '1m' | '6m' | '1y'>('1d');
+  const [selectedRange, setSelectedRange] = useState<
+    "1d" | "1w" | "1m" | "6m" | "1y"
+  >("1d");
 
   const { data: priceHistory, isLoading } = useQuery({
-    queryKey: ['priceHistory', ticker, selectedRange],
+    queryKey: ["priceHistory", ticker, selectedRange],
     queryFn: () => marketService.getPriceHistory(ticker, selectedRange),
   });
 
-  const chartData = priceHistory?.map(point => ({
-    timestamp: point.timestamp,
-    price: point.close,
-    high: point.high,
-    low: point.low,
-    volume: point.volume,
-  })) || [];
+  const chartData =
+    priceHistory?.map((point) => ({
+      timestamp: point.timestamp,
+      price: point.close,
+      high: point.high,
+      low: point.low,
+      volume: point.volume,
+    })) || [];
 
   const formatXAxis = (tickItem: string) => {
     const date = new Date(tickItem);
-    if (selectedRange === '1d') {
-      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    if (selectedRange === "1d") {
+      return date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     }
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
   const formatTooltipValue = (value: number) => {
@@ -81,9 +85,9 @@ export function PriceChart({ ticker }: PriceChartProps) {
             {timeRanges.map((range) => (
               <Button
                 key={range.value}
-                variant={selectedRange === range.value ? 'default' : 'outline'}
+                variant={selectedRange === range.value ? "default" : "outline"}
                 size="sm"
-                onClick={() => setSelectedRange(range.value as any)}
+                onClick={() => setSelectedRange(range.value)}
               >
                 {range.label}
               </Button>
@@ -114,9 +118,9 @@ export function PriceChart({ ticker }: PriceChartProps) {
               formatter={formatTooltipValue}
               labelFormatter={(label) => new Date(label).toLocaleString()}
               contentStyle={{
-                backgroundColor: 'hsl(var(--background))',
-                border: '1px solid hsl(var(--border))',
-                borderRadius: 'var(--radius)',
+                backgroundColor: "hsl(var(--background))",
+                border: "1px solid hsl(var(--border))",
+                borderRadius: "var(--radius)",
               }}
             />
             <Area

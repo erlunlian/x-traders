@@ -21,8 +21,11 @@ export function TickerFeed({ ticker }: { ticker: string }) {
       try {
         const data = await socialService.getTickerPosts(ticker, 20);
         if (!cancelled) setPosts(data);
-      } catch (e: any) {
-        if (!cancelled) setError(e?.message || "Failed to load feed");
+      } catch (e: unknown) {
+        if (!cancelled) {
+          const msg = e instanceof Error ? e.message : "Failed to load feed";
+          setError(msg);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -45,6 +48,7 @@ export function TickerFeed({ ticker }: { ticker: string }) {
         const data = await socialService.getPostComments(postId, 20);
         setComments((c) => ({ ...c, [postId]: data }));
       } catch (e) {
+        console.error(e);
         // swallow error per-post
       } finally {
         setCommentsLoading((s) => ({ ...s, [postId]: false }));
