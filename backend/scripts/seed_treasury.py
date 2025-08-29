@@ -145,11 +145,28 @@ async def ensure_sell_order(trader: TraderAccount, ticker: str) -> None:
         pass
 
 
+async def has_circulating_shares(ticker: str, treasury: TraderAccount) -> bool:
+    """Return True if any non-treasury account holds >0 shares for ticker."""
+    async with get_db_transaction() as session:
+        result = await session.execute(
+            select(Position)
+            .where(Position.ticker == ticker)
+            .where(Position.quantity > 0)
+            .where(Position.trader_id != treasury.trader_id)
+            .limit(1)
+        )
+        return result.scalar_one_or_none() is not None
+
+
 async def main() -> None:
     trader = await get_or_create_treasury_trader()
 
     # Seed positions and orders per ticker
     for ticker in TICKERS:
+        # Skip if shares are already circulating for this ticker
+        if await has_circulating_shares(ticker, trader):
+            print(f"Skipping {ticker}: shares already circulating.")
+            continue
         await ensure_treasury_shares(trader, ticker)
         await ensure_sell_order(trader, ticker)
 
