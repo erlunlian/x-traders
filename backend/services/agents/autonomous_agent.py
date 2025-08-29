@@ -46,6 +46,8 @@ class AgentState(BaseModel):
 class AutonomousAgent:
     """Autonomous agent that makes trading decisions"""
 
+    MAX_RECURSION_LIMIT = 1000000000
+
     def __init__(self, agent: Agent):
         self.agent = agent
         self.trader_id = str(self.agent.trader_id)  # Store trader_id as string for tools
@@ -101,7 +103,7 @@ class AutonomousAgent:
             self.route_from_think,
             {
                 "execute": "execute_tools",
-                "think_again": "think",  # Loop back to think if no tool calls
+                "check_active": "check_active",  # Allow jump back to activity check
             },
         )
 
@@ -176,7 +178,6 @@ Cycle: {state.cycle_count}
 
         # Get response with potential tool calls
         response = await llm_with_tools.ainvoke(state.messages)
-        print("response", response)
 
         # Store the full AI response in state (includes tool calls)
         state.messages.append(response)
@@ -318,11 +319,13 @@ Cycle: {state.cycle_count}
 
         try:
             while self.running:
-                # Run one cycle through the graph
-                result = await self.graph.ainvoke(state)
+                # Run one cycle through the graph with a higher recursion limit
+                result = await self.graph.ainvoke(
+                    state, config={"recursion_limit": self.MAX_RECURSION_LIMIT}
+                )
 
                 # Update state for next iteration
-                state = result
+                state = AgentState(**result)
 
                 # Check if we should stop
                 if not state.is_active:

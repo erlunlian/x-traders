@@ -1,6 +1,7 @@
 """
 Repository for double-entry bookkeeping.
 """
+
 import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,20 +23,22 @@ class LedgerRepository:
         """Post double-entry for trade execution"""
         # Cash entries
         cash_entries = [
+            # Buyer pays cash: record as a credit to decrease cash balance
             LedgerEntry(
                 trade_id=trade.trade_id,
                 trader_id=trade.buyer_id,
                 account="CASH",
-                debit_in_cents=trade.price * trade.quantity,
-                credit_in_cents=0,
+                debit_in_cents=0,
+                credit_in_cents=trade.price * trade.quantity,
                 description=f"Buy {trade.quantity} {trade.ticker} @ ${trade.price/100:.2f}",
             ),
+            # Seller receives cash: record as a debit to increase cash balance
             LedgerEntry(
                 trade_id=trade.trade_id,
                 trader_id=trade.seller_id,
                 account="CASH",
-                debit_in_cents=0,
-                credit_in_cents=trade.price * trade.quantity,
+                debit_in_cents=trade.price * trade.quantity,
+                credit_in_cents=0,
                 description=f"Sell {trade.quantity} {trade.ticker} @ ${trade.price/100:.2f}",
             ),
         ]

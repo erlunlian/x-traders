@@ -3,6 +3,7 @@ Service for processing webhook data from TwitterAPI.io
 """
 
 import os
+from datetime import datetime, timezone
 from typing import List
 
 from database.repositories import XDataRepository
@@ -34,7 +35,9 @@ class XWebhookService:
         """Check if username (without @) is in our tickers list"""
         return username.lower() in self.valid_usernames
 
-    def webhook_tweet_to_model(self, webhook_tweet: WebhookTweet) -> TweetInfo:
+    def webhook_tweet_to_model(
+        self, webhook_tweet: WebhookTweet, fetched_at: datetime
+    ) -> TweetInfo:
         """Convert webhook tweet format to our Tweet model"""
         return TweetInfo(
             tweet_id=webhook_tweet.id,
@@ -53,9 +56,12 @@ class XWebhookService:
             quoted_tweet_id=webhook_tweet.quoted_tweet_id,
             retweeted_tweet_id=webhook_tweet.retweeted_tweet_id,
             entities=None,  # Webhook doesn't provide entities
+            fetched_at=fetched_at,
         )
 
-    def create_user_info_from_webhook(self, webhook_tweet: WebhookTweet) -> UserInfo:
+    def create_user_info_from_webhook(
+        self, webhook_tweet: WebhookTweet, fetched_at: datetime
+    ) -> UserInfo:
         """Create minimal UserInfo from webhook data"""
         return UserInfo(
             username=webhook_tweet.author.username,
@@ -64,6 +70,7 @@ class XWebhookService:
             location=None,
             num_followers=0,  # Webhook doesn't provide these
             num_following=0,  # Will be updated when fetched from API
+            fetched_at=fetched_at,
         )
 
     async def process_webhook_without_commit(
@@ -80,9 +87,11 @@ class XWebhookService:
         skipped_tweets: List[SkippedTweet] = []
         processing_errors: List[ProcessingError] = []
 
+        fetched_at = datetime.now(timezone.utc)
         for webhook_tweet in payload.tweets:
             try:
                 # Validate username is in our tickers list
+                print(webhook_tweet.author.username)
                 if not self.is_valid_username(webhook_tweet.author.username):
                     skipped_tweets.append(
                         SkippedTweet(
@@ -97,14 +106,12 @@ class XWebhookService:
                 user = await repo.get_user_or_none(webhook_tweet.author.username)
                 if not user:
                     # Create minimal user record - will be enriched later
-                    user_info = self.create_user_info_from_webhook(webhook_tweet)
+                    user_info = self.create_user_info_from_webhook(webhook_tweet, fetched_at)
                     await repo.upsert_user_without_commit(user_info)
 
                 # Convert and store tweet
-                tweet = self.webhook_tweet_to_model(webhook_tweet)
-                await repo.upsert_tweet_without_commit(
-                    tweet, webhook_tweet.author.username
-                )
+                tweet = self.webhook_tweet_to_model(webhook_tweet, fetched_at)
+                await repo.upsert_tweet_without_commit(tweet, webhook_tweet.author.username)
 
                 processed_tweets.append(
                     ProcessedTweet(
@@ -114,9 +121,8 @@ class XWebhookService:
                 )
 
             except Exception as e:
-                processing_errors.append(
-                    ProcessingError(tweet_id=webhook_tweet.id, error=str(e))
-                )
+                print("ERROR", e)
+                processing_errors.append(ProcessingError(tweet_id=webhook_tweet.id, error=str(e)))
 
         return WebhookProcessingResult(
             processed=len(processed_tweets),

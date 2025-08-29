@@ -2,12 +2,13 @@
 API endpoint for receiving X/Twitter webhooks
 """
 
-from database import get_db
-from database.repositories import XDataRepository
 from fastapi import APIRouter, Depends, Header, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from database import get_db
+from database.repositories_x_data import XDataRepository
 from models.schemas.webhook import WebhookPayload, WebhookProcessingResult
 from services.x_webhook_service import XWebhookService
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/webhook", tags=["x_webhook"])
 
@@ -21,6 +22,17 @@ async def receive_tweet_webhook(
     x_api_key: str = Header(None, alias="X-API-Key"),
     db: AsyncSession = Depends(get_db),
 ) -> WebhookProcessingResult:
+
+    if payload.event_type == "test_webhook_url":
+        return WebhookProcessingResult(
+            processed=0,
+            skipped=0,
+            errors=0,
+            processed_tweets=[],
+            skipped_tweets=[],
+            processing_errors=[],
+        )
+
     """
     Receive tweet webhook from TwitterAPI.io
 
@@ -48,4 +60,4 @@ async def receive_tweet_webhook(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to process webhook: {str(e)}",
-        )
+        ) from e

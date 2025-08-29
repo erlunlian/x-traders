@@ -1,6 +1,7 @@
 """
 Repository for order operations.
 """
+
 import uuid
 from datetime import datetime
 from typing import List, Optional
@@ -65,21 +66,15 @@ class OrderRepository:
 
     async def get_order(self, order_id: uuid.UUID) -> Order:
         """Get order by ID - raises if not found"""
-        result = await self.session.execute(
-            select(Order).where(Order.order_id == order_id)
-        )
+        result = await self.session.execute(select(Order).where(Order.order_id == order_id))
         return result.scalar_one()
 
     async def get_order_or_none(self, order_id: uuid.UUID) -> Optional[Order]:
         """Get order by ID - returns None if not found"""
-        result = await self.session.execute(
-            select(Order).where(Order.order_id == order_id)
-        )
+        result = await self.session.execute(select(Order).where(Order.order_id == order_id))
         return result.scalar_one_or_none()
 
-    async def update_filled_without_commit(
-        self, order_id: uuid.UUID, fill_quantity: int
-    ):
+    async def update_filled_without_commit(self, order_id: uuid.UUID, fill_quantity: int):
         """
         Update order filled quantity and status.
         Validates that filled quantity doesn't exceed order quantity.
@@ -91,9 +86,7 @@ class OrderRepository:
 
         new_filled = order.filled_quantity + fill_quantity
         if new_filled > order.quantity:
-            raise ValueError(
-                f"Fill quantity {new_filled} exceeds order quantity {order.quantity}"
-            )
+            raise ValueError(f"Fill quantity {new_filled} exceeds order quantity {order.quantity}")
 
         order.filled_quantity = new_filled
 
@@ -151,9 +144,7 @@ class OrderRepository:
 
         # Only cancel if order is still active
         if order.status not in [OrderStatus.PENDING, OrderStatus.PARTIAL]:
-            raise ValueError(
-                f"Cannot cancel order {order_id} with status {order.status}"
-            )
+            raise ValueError(f"Cannot cancel order {order_id} with status {order.status}")
 
         # Update status based on reason
         if cancel_reason == CancelReason.USER:

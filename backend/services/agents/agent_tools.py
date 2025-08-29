@@ -3,6 +3,7 @@ Tool registry for LangGraph agents to interact with the exchange.
 These tools are structured for easy integration with LangChain/LangGraph.
 """
 
+import asyncio
 from typing import List
 from uuid import UUID
 
@@ -166,7 +167,7 @@ class TweetsByIdsInput(BaseModel):
 class RestInput(BaseModel):
     """Input for taking a rest/break"""
 
-    duration_minutes: int = Field(default=5, description="Duration to rest in minutes", ge=1, le=60)
+    duration_minutes: int = Field(description="Duration to rest in minutes", ge=1, le=300)
 
 
 # Trading action tools
@@ -545,8 +546,6 @@ async def get_x_recent_tweets(**kwargs) -> RecentTweetsResult:
 async def rest(**kwargs) -> dict:
     """Take a break for a specified duration"""
     input_data = RestInput(**kwargs)
-    import asyncio
-
     await asyncio.sleep(input_data.duration_minutes * 60)
     return {"success": True, "rested": True, "duration_minutes": input_data.duration_minutes}
 
@@ -697,8 +696,9 @@ def get_utility_tools() -> List[StructuredTool]:
     return [
         StructuredTool.from_function(
             func=rest,
-            name="rest",
+            name=AgentToolName.REST,
             description="Take a break for a specified duration in minutes",
+            args_schema=RestInput,
             coroutine=rest,
         )
     ]
