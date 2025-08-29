@@ -11,13 +11,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -64,6 +57,8 @@ export function AgentLeaderboard() {
   const [createAgentOpen, setCreateAgentOpen] = useState(false);
   const [sortField, setSortField] = useState<SortField>("total_assets");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     fetchAgents();
@@ -76,11 +71,84 @@ export function AgentLeaderboard() {
         "/api/agents/leaderboard"
       );
       setAgents(data.agents);
+      setSelected((prev) => {
+        const updated: Record<string, boolean> = {};
+        for (const a of data.agents)
+          updated[a.agent_id] = prev[a.agent_id] || false;
+        return updated;
+      });
     } catch (err) {
       setError("Failed to load agent leaderboard");
       console.error("Error fetching agent leaderboard:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const selectedIds = Object.entries(selected)
+    .filter(([, v]) => v)
+    .map(([k]) => k);
+
+  const canBulkDelete = agents
+    .filter((a) => selected[a.agent_id])
+    .every((a) => a.total_trades_executed === 0);
+
+  const bulkToggle = async (activate: boolean) => {
+    if (selectedIds.length === 0) return;
+    try {
+      setBusy(true);
+      await apiClient.post<AgentLeaderboardEntry[]>("/api/agents/bulk/toggle", {
+        agent_ids: selectedIds,
+        is_active: activate,
+      });
+      await fetchAgents();
+    } catch (e) {
+      console.error("Bulk toggle failed", e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const bulkDelete = async () => {
+    if (selectedIds.length === 0 || !canBulkDelete) return;
+    try {
+      setBusy(true);
+      await apiClient.post<{ deleted: string[]; skipped: string[] }>(
+        "/api/agents/bulk/delete",
+        { agent_ids: selectedIds }
+      );
+      await fetchAgents();
+    } catch (e) {
+      console.error("Bulk delete failed", e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleOne = async (agentId: string) => {
+    try {
+      setBusy(true);
+      await apiClient.post<AgentLeaderboardEntry>(
+        `/api/agents/${agentId}/toggle`
+      );
+      await fetchAgents();
+    } catch (e) {
+      console.error("Toggle failed", e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteOne = async (agentId: string, trades: number) => {
+    if (trades > 0) return;
+    try {
+      setBusy(true);
+      await apiClient.delete(`/api/agents/${agentId}`);
+      await fetchAgents();
+    } catch (e) {
+      console.error("Delete failed", e);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -260,24 +328,34 @@ export function AgentLeaderboard() {
             </p>
           </div>
           <div className="flex items-center gap-4">
-            <Select
-              value={sortField}
-              onValueChange={(value) => setSortField(value as SortField)}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Sort by..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="total_assets">Total Assets</SelectItem>
-                <SelectItem value="profit_loss">Profit/Loss</SelectItem>
-                <SelectItem value="trades">Trades Executed</SelectItem>
-                <SelectItem value="initial_balance">Initial Balance</SelectItem>
-                <SelectItem value="decisions">Decisions Made</SelectItem>
-                <SelectItem value="balance">Cash Balance</SelectItem>
-                <SelectItem value="name">Name</SelectItem>
-                <SelectItem value="created_at">Created Date</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                disabled={busy || selectedIds.length === 0}
+                onClick={() => bulkToggle(true)}
+              >
+                Start Selected
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={busy || selectedIds.length === 0}
+                onClick={() => bulkToggle(false)}
+              >
+                Pause Selected
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={busy || selectedIds.length === 0 || !canBulkDelete}
+                onClick={bulkDelete}
+                title={
+                  !canBulkDelete && selectedIds.length > 0
+                    ? "Cannot delete agents with trades"
+                    : undefined
+                }
+              >
+                Delete Selected
+              </Button>
+            </div>
             <Button onClick={() => setCreateAgentOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Create Agent
@@ -302,6 +380,22 @@ export function AgentLeaderboard() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[40px]">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all"
+                      checked={
+                        agents.length > 0 &&
+                        agents.every((a) => selected[a.agent_id])
+                      }
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        const next: Record<string, boolean> = {};
+                        for (const a of agents) next[a.agent_id] = checked;
+                        setSelected(next);
+                      }}
+                    />
+                  </TableHead>
                   <TableHead className="w-[60px]">Rank</TableHead>
                   <TableHead>
                     <Button
@@ -386,11 +480,20 @@ export function AgentLeaderboard() {
               </TableHeader>
               <TableBody>
                 {sortedAgents.map((agent, index) => (
-                  <TableRow
-                    key={agent.agent_id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => handleAgentClick(agent.trader_id)}
-                  >
+                  <TableRow key={agent.agent_id} className="hover:bg-muted/50">
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${agent.name}`}
+                        checked={!!selected[agent.agent_id]}
+                        onChange={(e) =>
+                          setSelected((prev) => ({
+                            ...prev,
+                            [agent.agent_id]: e.target.checked,
+                          }))
+                        }
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center">
                         <span className="font-mono text-sm">#{index + 1}</span>
@@ -402,7 +505,12 @@ export function AgentLeaderboard() {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Bot className="h-4 w-4 text-primary" />
-                        <span className="font-medium">{agent.name}</span>
+                        <button
+                          className="font-medium text-left hover:underline"
+                          onClick={() => handleAgentClick(agent.trader_id)}
+                        >
+                          {agent.name}
+                        </button>
                       </div>
                     </TableCell>
                     <TableCell className="text-right font-mono">

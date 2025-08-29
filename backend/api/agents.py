@@ -5,7 +5,7 @@ AI Agents API endpoints
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Body, HTTPException
 
 from database import async_session
 from database.repositories import LedgerRepository, PositionRepository
@@ -326,3 +326,91 @@ async def toggle_agent(agent_id: UUID) -> Agent:
             await agent_manager.stop_agent(agent_id)
 
     return updated_agent
+
+
+@router.post("/bulk/toggle", response_model=List[Agent])
+async def bulk_toggle_agents(
+    agent_ids: List[UUID] = Body(..., embed=True),
+    is_active: bool = Body(..., embed=True),
+) -> List[Agent]:
+    """
+    Bulk start/pause agents by setting is_active.
+    """
+    async with async_session() as session:
+        agent_repo = AgentRepository(session)
+
+        updated = await agent_repo.set_agents_active_without_commit(agent_ids, is_active)
+        await session.commit()
+
+        # Start/stop in manager
+        for agent in updated:
+            if is_active:
+                await agent_manager.start_agent(agent)
+            else:
+                await agent_manager.stop_agent(agent.agent_id)
+
+        return updated
+
+
+@router.delete("/{agent_id}")
+async def delete_agent(agent_id: UUID):
+    """
+    Delete a single agent if they have zero trades.
+    """
+    async with async_session() as session:
+        agent_repo = AgentRepository(session)
+        trade_repo = TradeRepository(session)
+        trader_repo = TraderRepository(session)
+
+        agent = await agent_repo.get_agent_or_none(agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_id}")
+
+        trades = await trade_repo.get_trader_trades(agent.trader_id, limit=1)
+        if len(trades) > 0:
+            raise HTTPException(status_code=400, detail="Cannot delete agent with trades")
+
+        # Ensure stopped
+        await agent_manager.stop_agent(agent_id)
+        deleted = await agent_repo.delete_agent_without_commit(agent_id)
+        # Also delete trader account
+        await trader_repo.delete_trader_without_commit(agent.trader_id)
+        await session.commit()
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_id}")
+        return {"status": "deleted"}
+
+
+@router.post("/bulk/delete")
+async def bulk_delete_agents(agent_ids: List[UUID] = Body(..., embed=True)):
+    """
+    Bulk delete agents that have zero trades. Agents with trades are skipped.
+    Returns a result summary.
+    """
+    async with async_session() as session:
+        agent_repo = AgentRepository(session)
+        trade_repo = TradeRepository(session)
+        trader_repo = TraderRepository(session)
+
+        deleted: List[UUID] = []
+        skipped: List[UUID] = []
+
+        for agent_id in agent_ids:
+            agent = await agent_repo.get_agent_or_none(agent_id)
+            if not agent:
+                skipped.append(agent_id)
+                continue
+            trades = await trade_repo.get_trader_trades(agent.trader_id, limit=1)
+            if len(trades) > 0:
+                skipped.append(agent_id)
+                continue
+            await agent_manager.stop_agent(agent_id)
+            ok = await agent_repo.delete_agent_without_commit(agent_id)
+            if ok:
+                await trader_repo.delete_trader_without_commit(agent.trader_id)
+                deleted.append(agent_id)
+            else:
+                skipped.append(agent_id)
+
+        await session.commit()
+        return {"deleted": deleted, "skipped": skipped}

@@ -1,6 +1,7 @@
 """
 Repository for trader accounts.
 """
+
 import uuid
 from typing import List, Optional
 
@@ -59,3 +60,12 @@ class TraderRepository:
             .order_by(desc(TraderAccount.created_at))
         )
         return list(result.scalars().all())
+
+    async def delete_trader_without_commit(self, trader_id: uuid.UUID) -> bool:
+        """Delete a trader account. Returns True if deleted."""
+        trader = await self.get_trader_or_none(trader_id)
+        if not trader:
+            return False
+        await self.session.delete(trader)
+        await self.session.flush()
+        return True

@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import and_, desc, func, select
 
@@ -140,6 +141,34 @@ class AgentRepository:
         await self.session.flush()
 
         return self._db_to_agent(agent_db)
+
+    async def set_agents_active_without_commit(
+        self, agent_ids: List[UUID], is_active: bool
+    ) -> List[Agent]:
+        """Bulk set agents' active status"""
+        if not agent_ids:
+            return []
+        result = await self.session.execute(select(AIAgent).where(AIAgent.agent_id.in_(agent_ids)))
+        agents = result.scalars().all()
+        for agent_db in agents:
+            agent_db.is_active = is_active
+        await self.session.flush()
+        return [self._db_to_agent(a) for a in agents]
+
+    async def delete_agent_without_commit(self, agent_id: UUID) -> bool:
+        """Delete an agent and its related memory/thoughts. Returns True if deleted."""
+        agent_db = await self._get_db_agent_or_none(agent_id)
+        if not agent_db:
+            return False
+
+        # Delete related thoughts and memories first to satisfy FK constraints
+        await self.session.execute(delete(AgentThought).where(AgentThought.agent_id == agent_id))
+        await self.session.execute(delete(AgentMemory).where(AgentMemory.agent_id == agent_id))
+
+        # Delete the agent record
+        await self.session.delete(agent_db)
+        await self.session.flush()
+        return True
 
     async def save_memory_without_commit(
         self,
