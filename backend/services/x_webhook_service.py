@@ -91,7 +91,6 @@ class XWebhookService:
         for webhook_tweet in payload.tweets:
             try:
                 # Validate username is in our tickers list
-                print(webhook_tweet.author.username)
                 if not self.is_valid_username(webhook_tweet.author.username):
                     skipped_tweets.append(
                         SkippedTweet(

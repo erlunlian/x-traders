@@ -296,6 +296,30 @@ async def get_agent_memory(agent_id: UUID) -> AgentMemoryState:
         return memory_state
 
 
+@router.post("/bulk/toggle", response_model=List[Agent])
+async def bulk_toggle_agents(
+    agent_ids: List[UUID] = Body(..., embed=True),
+    is_active: bool = Body(..., embed=True),
+) -> List[Agent]:
+    """
+    Bulk start/pause agents by setting is_active.
+    """
+    async with async_session() as session:
+        agent_repo = AgentRepository(session)
+
+        updated = await agent_repo.set_agents_active_without_commit(agent_ids, is_active)
+        await session.commit()
+
+        # Start/stop in manager
+        for agent in updated:
+            if is_active:
+                await agent_manager.start_agent(agent)
+            else:
+                await agent_manager.stop_agent(agent.agent_id)
+
+        return updated
+
+
 @router.post("/{agent_id}/toggle", response_model=Agent)
 async def toggle_agent(agent_id: UUID) -> Agent:
     """
@@ -326,30 +350,6 @@ async def toggle_agent(agent_id: UUID) -> Agent:
             await agent_manager.stop_agent(agent_id)
 
     return updated_agent
-
-
-@router.post("/bulk/toggle", response_model=List[Agent])
-async def bulk_toggle_agents(
-    agent_ids: List[UUID] = Body(..., embed=True),
-    is_active: bool = Body(..., embed=True),
-) -> List[Agent]:
-    """
-    Bulk start/pause agents by setting is_active.
-    """
-    async with async_session() as session:
-        agent_repo = AgentRepository(session)
-
-        updated = await agent_repo.set_agents_active_without_commit(agent_ids, is_active)
-        await session.commit()
-
-        # Start/stop in manager
-        for agent in updated:
-            if is_active:
-                await agent_manager.start_agent(agent)
-            else:
-                await agent_manager.stop_agent(agent.agent_id)
-
-        return updated
 
 
 @router.delete("/{agent_id}")
