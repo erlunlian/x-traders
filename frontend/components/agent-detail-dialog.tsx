@@ -1,5 +1,6 @@
 "use client";
 
+import { JsonViewer } from "@/components/json-viewer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,7 +29,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiClient } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
-import { JsonViewer } from "@/components/json-viewer";
 import type {
   Agent,
   AgentMemoryState,
@@ -167,7 +167,12 @@ export function AgentDetailDialog({
 
   // Auto-scroll to bottom only on initial load or refresh
   useEffect(() => {
-    if (activityEndRef.current && activeSection === "activity" && agentThoughts.length > 0 && agentThoughts.length <= 50) {
+    if (
+      activityEndRef.current &&
+      activeSection === "activity" &&
+      agentThoughts.length > 0 &&
+      agentThoughts.length <= 50
+    ) {
       // Only auto-scroll for initial load (when we have 50 or fewer messages)
       activityEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
@@ -219,19 +224,19 @@ export function AgentDetailDialog({
 
     try {
       setLoadingActivities(true);
-      
+
       // Save scroll height before loading
       const scrollContainer = scrollContainerRef.current;
       const previousScrollHeight = scrollContainer?.scrollHeight || 0;
-      
+
       const response = await apiClient.get<ThoughtListResponse>(
         `/api/agents/${trader.agent.agent_id}/thoughts?limit=50&offset=${agentThoughts.length}`
       );
-      
+
       // Prepend older messages (they come in newest-first from API)
       setAgentThoughts((prev) => {
         const newThoughts = [...response.thoughts.reverse(), ...prev];
-        
+
         // Restore scroll position after DOM updates
         setTimeout(() => {
           if (scrollContainer) {
@@ -240,7 +245,7 @@ export function AgentDetailDialog({
             scrollContainer.scrollTop = scrollContainer.scrollTop + scrollDiff;
           }
         }, 0);
-        
+
         return newThoughts;
       });
     } catch (err) {
@@ -898,123 +903,124 @@ export function AgentDetailDialog({
               </p>
             </div>
           ) : (
-            <div ref={scrollContainerRef} className="h-full overflow-y-auto p-4">
-                {/* Load more button at the top */}
-                {agentThoughts.length >= 50 && (
-                  <div className="text-center pb-4">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={fetchMoreActivities}
-                      disabled={loadingActivities}
-                      className="text-xs"
+            <div
+              ref={scrollContainerRef}
+              className="h-full overflow-y-auto p-4"
+            >
+              {/* Load more button at the top */}
+              {agentThoughts.length >= 50 && (
+                <div className="text-center pb-4">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={fetchMoreActivities}
+                    disabled={loadingActivities}
+                    className="text-xs"
+                  >
+                    {loadingActivities ? "Loading..." : "Load Earlier Messages"}
+                  </Button>
+                </div>
+              )}
+
+              <div className="space-y-2 flex-1">
+                {agentThoughts.map((thought) => {
+                  const itemId = thought.thought_id;
+
+                  return (
+                    <div
+                      key={itemId}
+                      className="animate-in fade-in-0 slide-in-from-bottom-2"
                     >
-                      {loadingActivities
-                        ? "Loading..."
-                        : "Load Earlier Messages"}
-                    </Button>
-                  </div>
-                )}
-
-                <div className="space-y-2 flex-1">
-                  {agentThoughts.map((thought) => {
-                    const itemId = thought.thought_id;
-
-                    return (
-                      <div
-                        key={itemId}
-                        className="animate-in fade-in-0 slide-in-from-bottom-2"
-                      >
-                        {/* Thought item - styled like a chat message */}
-                        <div className="flex gap-3 w-full overflow-hidden">
-                          <div className="flex-shrink-0 mt-1">
-                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                              {thought.thought_type === "TOOL_CALL" ? (
-                                <Zap className="h-4 w-4 text-primary" />
-                              ) : thought.thought_type === "ERROR" ? (
-                                <X className="h-4 w-4 text-destructive" />
-                              ) : (
-                                <Brain className="h-4 w-4 text-muted-foreground" />
-                              )}
-                            </div>
+                      {/* Thought item - styled like a chat message */}
+                      <div className="flex gap-3 w-full overflow-hidden">
+                        <div className="flex-shrink-0 mt-1">
+                          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                            {thought.thought_type === "TOOL_CALL" ? (
+                              <Zap className="h-4 w-4 text-primary" />
+                            ) : thought.thought_type === "ERROR" ? (
+                              <X className="h-4 w-4 text-destructive" />
+                            ) : (
+                              <Brain className="h-4 w-4 text-muted-foreground" />
+                            )}
                           </div>
-                          <div className="flex-1 min-w-0 overflow-hidden">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <Badge
-                                variant={
-                                  thought.thought_type === "TOOL_CALL"
-                                    ? "default"
-                                    : thought.thought_type === "ERROR"
-                                    ? "destructive"
-                                    : "outline"
-                                }
-                                className="text-xs"
-                              >
-                                {thought.thought_type}
-                              </Badge>
-                              {thought.tool_name && (
-                                <Badge variant="secondary" className="text-xs">
-                                  {thought.tool_name}
-                                </Badge>
-                              )}
-                              <span className="text-xs text-muted-foreground">
-                                {new Date(
-                                  thought.created_at
-                                ).toLocaleTimeString()}
-                              </span>
-                            </div>
-                            <div
-                              className={cn(
-                                "rounded-lg p-3 mt-1 overflow-hidden",
+                        </div>
+                        <div className="flex-1 min-w-0 overflow-hidden">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge
+                              variant={
                                 thought.thought_type === "TOOL_CALL"
-                                  ? "bg-primary/5 border border-primary/20"
+                                  ? "default"
                                   : thought.thought_type === "ERROR"
-                                  ? "bg-destructive/5 border border-destructive/20"
-                                  : "bg-muted/50"
-                              )}
-                              style={{ maxWidth: "min(100%, 600px)" }}
+                                  ? "destructive"
+                                  : "outline"
+                              }
+                              className="text-xs"
                             >
-                              {thought.content && (
-                                <p className="text-sm whitespace-pre-wrap break-words">
-                                  {thought.content}
+                              {thought.thought_type}
+                            </Badge>
+                            {thought.tool_name && (
+                              <Badge variant="secondary" className="text-xs">
+                                {thought.tool_name}
+                              </Badge>
+                            )}
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(
+                                thought.created_at
+                              ).toLocaleTimeString()}
+                            </span>
+                          </div>
+                          <div
+                            className={cn(
+                              "rounded-lg p-3 mt-1 overflow-hidden",
+                              thought.thought_type === "TOOL_CALL"
+                                ? "bg-primary/5 border border-primary/20"
+                                : thought.thought_type === "ERROR"
+                                ? "bg-destructive/5 border border-destructive/20"
+                                : "bg-muted/50"
+                            )}
+                            style={{ maxWidth: "min(100%, 600px)" }}
+                          >
+                            {thought.content && (
+                              <p className="text-sm whitespace-pre-wrap break-words">
+                                {thought.content}
+                              </p>
+                            )}
+                            {thought.tool_args && (
+                              <div className="mt-2 pt-2 border-t border-border/50">
+                                <p className="text-xs font-medium text-muted-foreground mb-2">
+                                  Arguments
                                 </p>
-                              )}
-                              {thought.tool_args && (
-                                <div className="mt-2 pt-2 border-t border-border/50 overflow-hidden">
-                                  <p className="text-xs font-medium text-muted-foreground mb-2">
-                                    Arguments
-                                  </p>
-                                  <JsonViewer 
-                                    data={thought.tool_args} 
-                                    maxHeight="max-h-40"
-                                  />
-                                </div>
-                              )}
-                              {thought.tool_result && (
-                                <div className="mt-2 pt-2 border-t border-border/50 overflow-hidden">
-                                  <p className="text-xs font-medium text-muted-foreground mb-2">
-                                    Result
-                                  </p>
-                                  <JsonViewer 
-                                    data={thought.tool_result} 
-                                    maxHeight="max-h-60"
-                                  />
-                                </div>
-                              )}
-                            </div>
+                                <JsonViewer
+                                  data={thought.tool_args}
+                                  maxHeight="max-h-40"
+                                />
+                              </div>
+                            )}
+                            {thought.tool_result && (
+                              <div className="mt-2 pt-2 border-t border-border/50">
+                                <p className="text-xs font-medium text-muted-foreground mb-2">
+                                  Result
+                                </p>
+                                <JsonViewer
+                                  data={thought.tool_result}
+                                  maxHeight="max-h-60"
+                                />
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
-                    );
-                  })}
+                    </div>
+                  );
+                })}
 
-                  {/* Scroll anchor - always scroll to here */}
-                  <div ref={activityEndRef} />
-                </div>
+                {/* Scroll anchor - always scroll to here */}
+                <div ref={activityEndRef} />
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
+      </div>
     );
   };
 
@@ -1112,24 +1118,18 @@ export function AgentDetailDialog({
               <>
                 {activeSection === "overview" && (
                   <ScrollArea className="h-full">
-                    <div className="p-6">
-                      {renderOverview()}
-                    </div>
+                    <div className="p-6">{renderOverview()}</div>
                   </ScrollArea>
                 )}
                 {activeSection === "trades" && (
                   <ScrollArea className="h-full">
-                    <div className="p-6">
-                      {renderTradeHistory()}
-                    </div>
+                    <div className="p-6">{renderTradeHistory()}</div>
                   </ScrollArea>
                 )}
                 {activeSection === "activity" && renderAgentActivity()}
                 {activeSection === "memory" && (
                   <ScrollArea className="h-full">
-                    <div className="p-6">
-                      {renderMemory()}
-                    </div>
+                    <div className="p-6">{renderMemory()}</div>
                   </ScrollArea>
                 )}
               </>

@@ -1,8 +1,8 @@
 "use client";
 
+import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
 
 interface JsonViewerProps {
   data: string;
@@ -11,18 +11,18 @@ interface JsonViewerProps {
   maxHeight?: string;
 }
 
-export function JsonViewer({ 
-  data, 
+export function JsonViewer({
+  data,
   className,
   defaultExpanded = false,
-  maxHeight = "max-h-60"
+  maxHeight = "max-h-96",
 }: JsonViewerProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
-  
+
   // Try to parse and format JSON
   let formattedData = data;
   let isValidJson = false;
-  
+
   try {
     const parsed = JSON.parse(data);
     formattedData = JSON.stringify(parsed, null, 2);
@@ -42,7 +42,7 @@ export function JsonViewer({
   }
 
   return (
-    <div className={cn("block w-full overflow-hidden", className)}>
+    <div className={cn("block w-full", className)}>
       <button
         onClick={() => setExpanded(!expanded)}
         className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -57,28 +57,28 @@ export function JsonViewer({
           ({formattedData.length} chars)
         </span>
       </button>
-      
+
       {expanded && (
-        <div 
+        <div
           className={cn(
-            "mt-1 rounded border border-border/50 bg-background/50 overflow-hidden",
+            "mt-1 rounded border border-border/50 bg-background/50 overflow-auto overscroll-contain",
             maxHeight
           )}
         >
-          <pre 
-            className="text-xs p-2 overflow-auto whitespace-pre block"
-            style={{ 
-              wordBreak: "normal", 
+          <pre
+            className="text-xs p-2 whitespace-pre block max-w-full"
+            style={{
+              wordBreak: "normal",
               overflowWrap: "normal",
               width: "100%",
-              minWidth: 0
+              minWidth: 0,
             }}
           >
             <code>{formattedData}</code>
           </pre>
         </div>
       )}
-      
+
       {!expanded && (
         <div className="text-xs text-muted-foreground font-mono truncate mt-1">
           {formattedData.substring(0, 80)}...

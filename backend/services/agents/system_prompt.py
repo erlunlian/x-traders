@@ -51,6 +51,7 @@ Guidelines:
 4. Consider market sentiment from tweets when making decisions
 5. Rest periodically to avoid overtrading and maintain perspective
 6. Track your performance and adjust strategies as needed
+7. Before calling any tools, output some text that briefly explains your next action.
 
 Your unique personality and trading style:
 {personality}"""

@@ -271,8 +271,6 @@ async def get_agent_thoughts(
         )
 
 
-
-
 @router.get("/{agent_id}/memory", response_model=AgentMemoryState)
 async def get_agent_memory(agent_id: UUID) -> AgentMemoryState:
     """
@@ -288,8 +286,6 @@ async def get_agent_memory(agent_id: UUID) -> AgentMemoryState:
 
         memory_state = await agent_repo.get_agent_memory(agent_id)
         return memory_state
-
-
 
 
 @router.post("/{agent_id}/toggle", response_model=Agent)
@@ -318,7 +314,7 @@ async def toggle_agent(agent_id: UUID) -> Agent:
         if new_status:
             await agent_manager.start_agent(updated_agent)
         else:
-            # The agent will stop itself when it detects is_active=False
-            pass
+            # Also stop the running task immediately
+            await agent_manager.stop_agent(agent_id)
 
     return updated_agent

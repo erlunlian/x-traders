@@ -16,6 +16,8 @@ engine = create_async_engine(
     max_overflow=10,
     pool_pre_ping=True,  # Verify connections before using
     isolation_level="READ COMMITTED",  # Explicit - fine for single-writer per symbol
+    # Disable asyncpg statement cache to avoid InvalidCachedStatementError after DDL changes
+    connect_args={"statement_cache_size": 0},
 )
 
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

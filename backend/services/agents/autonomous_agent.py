@@ -175,6 +175,7 @@ Cycle: {state.cycle_count}
 
         # Get response with potential tool calls
         response = await llm_with_tools.ainvoke(state.messages)
+        print("response", response)
 
         # Store the full AI response in state (includes tool calls)
         state.messages.append(response)
@@ -204,6 +205,20 @@ Cycle: {state.cycle_count}
         if not state.pending_tool_calls:
             return state
 
+        # Mid-cycle guard: re-check activity before executing any tool calls
+        # If paused mid-cycle, skip executing queued tools
+        try:
+            agent = await get_agent_safe(self.agent.agent_id)
+            if not agent.is_active:
+                state.is_active = False
+                state.pending_tool_calls = []
+                return state
+        except Exception:
+            # On DB error, be safe and stop executing tools this cycle
+            state.is_active = False
+            state.pending_tool_calls = []
+            return state
+
         for tool_call in state.pending_tool_calls:
             tool_name = tool_call["name"]
             tool_id = tool_call["id"]
@@ -212,6 +227,12 @@ Cycle: {state.cycle_count}
             try:
                 if tool_name not in self.tools_map:
                     raise ValueError(f"Unknown tool: {tool_name}")
+
+                # Guard before each individual tool execution as well
+                agent = await get_agent_safe(self.agent.agent_id)
+                if not agent.is_active:
+                    state.is_active = False
+                    break
 
                 # Execute the tool
                 result = await self.tools_map[tool_name](**arguments)
@@ -282,7 +303,7 @@ Cycle: {state.cycle_count}
         if state.pending_tool_calls:
             return "execute"
         else:
-            return "think_again"  # Loop back to think
+            return "check_active"  # Re-check active state between thoughts
 
     async def run_forever(self):
         """Main execution loop"""
@@ -306,6 +327,7 @@ Cycle: {state.cycle_count}
                 # Check if we should stop
                 if not state.is_active:
                     print(f"Agent {self.agent.name} stopping (is_active=False)")
+                    self.running = False
                     break
 
                 # Small delay between cycles
