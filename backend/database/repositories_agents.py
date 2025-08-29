@@ -218,13 +218,30 @@ class AgentRepository:
         )
 
     async def update_thought_with_result_without_commit(
-        self, thought_id: UUID, result: str
-    ) -> None:
+        self, thought_id: UUID, tool_result: str
+    ) -> ThoughtInfo:
         """Update a thought with a result"""
-        thought = await self._get_db_thought_or_none(thought_id)
-        if thought:
-            thought.tool_result = result
-            await self.session.flush()
+        result = await self.session.execute(
+            select(AgentThought).where(AgentThought.thought_id == thought_id)
+        )
+        thought = result.scalar_one_or_none()
+        if not thought:
+            raise ValueError(f"Thought not found: {thought_id}")
+
+        thought.tool_result = tool_result
+        await self.session.flush()
+
+        return ThoughtInfo(
+            thought_id=thought.thought_id,
+            agent_id=thought.agent_id,
+            step_number=thought.step_number,
+            thought_type=thought.thought_type,
+            content=thought.content,
+            tool_name=thought.tool_name,
+            tool_args=thought.tool_args,
+            tool_result=thought.tool_result,
+            created_at=thought.created_at,
+        )
 
     async def create_thought_without_commit(
         self,

@@ -64,6 +64,8 @@ usage() {
     echo "  db current            Show current migration version"
     echo "  db reset              Drop and recreate all tables (CAUTION!)"
     echo ""
+    echo "  treasury seed         Create/ensure treasury and list $1 asks"
+    echo ""
     echo "  tweets backfill       Fetch 100 tweets per ticker from API"
     echo "  tweets export         Export database tweets to JSON backup"
     echo "  tweets import [file]  Import tweets from JSON backup"
@@ -326,6 +328,23 @@ tweets_cmd() {
     esac
 }
 
+# Treasury commands
+treasury_cmd() {
+    case "$1" in
+        seed)
+            echo -e "${GREEN}Seeding treasury account and orders...${NC}"
+            cd "$BACKEND_DIR"
+            activate_venv || exit 1
+            python -m scripts.seed_treasury
+            ;;
+        *)
+            echo -e "${RED}Unknown treasury subcommand: $1${NC}"
+            echo "Available: seed"
+            exit 1
+            ;;
+    esac
+}
+
 # Start both servers
 start() {
     echo -e "${GREEN}Starting X-Traders servers...${NC}"
@@ -536,6 +555,9 @@ case "$1" in
         ;;
     tweets)
         tweets_cmd "${@:2}"
+        ;;
+    treasury)
+        treasury_cmd "$2"
         ;;
     clean)
         clean

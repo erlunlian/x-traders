@@ -13,9 +13,11 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -190,6 +192,16 @@ class TraderAccount(SQLModel, table=True):
     updated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now()),
+    )
+
+    # Enforce at most one admin trader via a partial unique index (PostgreSQL)
+    __table_args__ = (
+        Index(
+            "uq_single_admin",
+            "is_admin",
+            unique=True,
+            postgresql_where=text("is_admin IS TRUE"),
+        ),
     )
 
     class Config:

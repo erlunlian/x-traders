@@ -564,16 +564,13 @@ def get_trading_tools(trader_id: str) -> List[StructuredTool]:
 
     # Create wrapper functions that include the trader_id
     async def buy_limit_with_embedded_trader_id(**kwargs) -> OrderResult:
-        order = BuyLimitOrderInput(**kwargs)
-        return await buy_stock(trader_id, order)
+        return await buy_stock(trader_id=trader_id, **kwargs)
 
     async def sell_limit_with_embedded_trader_id(**kwargs) -> OrderResult:
-        order = SellLimitOrderInput(**kwargs)
-        return await sell_stock(trader_id, order)
+        return await sell_stock(trader_id=trader_id, **kwargs)
 
     async def cancel_stock_order_with_embedded_trader_id(**kwargs) -> CancelResult:
-        cancel_input = CancelOrderInput(**kwargs)
-        return await cancel_stock_order(trader_id, cancel_input)
+        return await cancel_stock_order(trader_id=trader_id, **kwargs)
 
     async def check_portfolio_wrapped_with_embedded_trader_id() -> PortfolioResult:
         return await check_portfolio(trader_id)

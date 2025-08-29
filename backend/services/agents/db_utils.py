@@ -104,12 +104,13 @@ async def create_thought_safe(
         return thought_info
 
 
-async def update_thought_with_result_safe(thought_id: UUID, result: str) -> None:
+async def update_thought_with_result_safe(thought_id: UUID, result: str) -> ThoughtInfo:
     """
     Update a thought with a result with proper session handling.
     Creates its own transaction context.
     """
     async with async_session() as session:
         repo = AgentRepository(session)
-        await repo.update_thought_with_result_without_commit(thought_id, result)
+        thought = await repo.update_thought_with_result_without_commit(thought_id, result)
         await session.commit()
+        return thought

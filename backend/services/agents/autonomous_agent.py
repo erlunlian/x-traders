@@ -266,7 +266,7 @@ Cycle: {state.cycle_count}
 
                 # Record all tool calls as thoughts
                 tool_thought = await update_thought_with_result_safe(
-                    thought_id=tool_thought.id,
+                    thought_id=tool_thought.thought_id,
                     result=result_str,
                 )
                 state.thoughts.append(tool_thought)
@@ -281,7 +281,7 @@ Cycle: {state.cycle_count}
 
                 # Log error as thought
                 error_thought = await update_thought_with_result_safe(
-                    thought_id=tool_thought.id,
+                    thought_id=tool_thought.thought_id,
                     result=f"Error with {tool_name}: {str(e)}",
                 )
                 state.thoughts.append(error_thought)
