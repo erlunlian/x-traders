@@ -29,7 +29,7 @@ export default function AdminLoginPage() {
         body: JSON.stringify({ password }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({} as any));
+        const data = await res.json().catch(() => ({}));
         throw new Error(data?.error || "Invalid password");
       }
       const data = await res.json();

@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from api.admin import router as admin_router
 from api.agents import router as agents_router
 from api.auth import router as auth_router
 from api.exchange import router as exchange_router
@@ -95,6 +96,7 @@ app.include_router(agents_router, prefix="/api/agents", tags=["Agents"])
 app.include_router(x_webhook_router, prefix="/api", tags=["Webhooks"])
 app.include_router(social_router, prefix="/api/social", tags=["Social"])
 app.include_router(auth_router, prefix="/api", tags=["Auth"])
+app.include_router(admin_router, prefix="/api/admin", tags=["Admin"])
 
 
 @app.get("/")

@@ -16,9 +16,10 @@ from pathlib import Path
 # Add backend to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
+from dotenv import load_dotenv
+
 from database import async_session
 from database.repositories import XDataRepository
-from dotenv import load_dotenv
 from models.core import Ticker
 from models.schemas.backup import BackupStats
 from services.backup_service import BackupService
@@ -82,16 +83,12 @@ class TweetBackfiller:
                     # Check if user exists and is fresh
                     existing_user = await repo.get_user_or_none(username)
 
-                    if existing_user and not self._is_data_stale(
-                        existing_user.fetched_at
-                    ):
+                    if existing_user and not self._is_data_stale(existing_user.fetched_at):
                         print(
                             f"  ⟳ User data is fresh (fetched {existing_user.fetched_at}), skipping..."
                         )
                         skipped_users += 1
-                        stats.users_processed += (
-                            1  # Count as processed since we verified it exists
-                        )
+                        stats.users_processed += 1  # Count as processed since we verified it exists
                         continue
 
                     # Fetch user info from API
@@ -99,30 +96,21 @@ class TweetBackfiller:
                     user_info = self.api_client.get_user_info(username)
                     await repo.upsert_user_without_commit(user_info)
                     stats.users_processed += 1
-                    print(
-                        f"  ✓ User info saved ({user_info.num_followers:,} followers)"
-                    )
+                    print(f"  ✓ User info saved ({user_info.num_followers:,} followers)")
 
                     # Check existing tweets count
-                    existing_tweets = await repo.get_tweets_by_username(
-                        username, limit=1
-                    )
+                    existing_tweets = await repo.get_tweets_by_username(username, limit=1)
 
                     # Only fetch tweets if we don't have enough or they're stale
                     should_fetch_tweets = (
                         self.force_refresh
                         or len(existing_tweets) == 0
-                        or (
-                            existing_tweets
-                            and self._is_data_stale(existing_tweets[0].fetched_at)
-                        )
+                        or (existing_tweets and self._is_data_stale(existing_tweets[0].fetched_at))
                     )
 
                     if should_fetch_tweets:
                         print(f"  Fetching last {self.tweets_per_ticker} tweets...")
-                        tweets = self.api_client.get_last_tweets(
-                            username, self.tweets_per_ticker
-                        )
+                        tweets = self.api_client.get_last_tweets(username, self.tweets_per_ticker)
 
                         # Store tweets (upsert handles duplicates)
                         for tweet in tweets:
@@ -137,9 +125,7 @@ class TweetBackfiller:
                                 username, limit=self.tweets_per_ticker
                             )
                         )
-                        print(
-                            f"  ⟳ Tweets are fresh ({existing_count} cached), skipping..."
-                        )
+                        print(f"  ⟳ Tweets are fresh ({existing_count} cached), skipping...")
                         stats.tweets_processed += existing_count
 
                     # Commit after each ticker to avoid losing progress

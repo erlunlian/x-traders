@@ -12,8 +12,9 @@ from pathlib import Path
 # Add backend to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from database import async_session
 from dotenv import load_dotenv
+
+from database import async_session
 from services.backup_service import BackupService
 
 # Load environment variables
@@ -28,9 +29,7 @@ async def main():
         type=str,
         help="Specific backup file to import (default: latest backup)",
     )
-    parser.add_argument(
-        "--list", action="store_true", help="List available backups and exit"
-    )
+    parser.add_argument("--list", action="store_true", help="List available backups and exit")
 
     args = parser.parse_args()
 

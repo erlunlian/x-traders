@@ -236,17 +236,53 @@ db_cmd() {
             alembic current
             ;;
         reset)
-            echo -e "${RED}WARNING: This will drop all tables and data!${NC}"
+            echo -e "${RED}WARNING: This will drop ALL objects in the 'public' schema (tables, enums, etc.) and erase ALL data!${NC}"
             read -p "Are you sure? (y/N): " -n 1 -r
             echo
             if [[ $REPLY =~ ^[Yy]$ ]]; then
-                echo -e "${YELLOW}Resetting database...${NC}"
+                echo -e "${YELLOW}Resetting database (drop schema, then re-run migrations)...${NC}"
                 cd "$BACKEND_DIR"
                 activate_venv || exit 1
-                
-                # Drop all tables
-                alembic downgrade base
-                # Recreate all tables
+
+                # Use Python + SQLAlchemy to drop and recreate the public schema to remove tables, enums, sequences, etc.
+                python - <<'PY'
+import os
+import asyncio
+from dotenv import load_dotenv
+from pathlib import Path
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
+
+# Explicitly load .env from the current working directory (backend)
+dotenv_path = Path.cwd() / ".env"
+if dotenv_path.exists():
+    load_dotenv(dotenv_path=str(dotenv_path))
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise SystemExit("DATABASE_URL is not set in environment or .env")
+
+async def drop_and_recreate_public_schema() -> None:
+    engine = create_async_engine(
+        DATABASE_URL,
+        echo=False,
+        connect_args={"statement_cache_size": 0},
+    )
+    async with engine.begin() as conn:
+        # Drop the public schema (drops all contained objects) and recreate it
+        await conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+        await conn.execute(text("CREATE SCHEMA public"))
+        # Optional: grant usage to all; adjust as needed for your DB user
+        await conn.execute(text("GRANT ALL ON SCHEMA public TO public"))
+        # Ensure search_path is set properly
+        await conn.execute(text("SET search_path TO public"))
+    await engine.dispose()
+
+asyncio.run(drop_and_recreate_public_schema())
+print("Schema 'public' dropped and recreated.")
+PY
+
+                # Recreate all tables by applying migrations from base to head
                 alembic upgrade head
                 echo -e "${GREEN}Database reset complete${NC}"
             else

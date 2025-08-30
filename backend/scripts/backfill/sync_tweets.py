@@ -13,8 +13,9 @@ from pathlib import Path
 # Add backend to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from database import async_session
 from dotenv import load_dotenv
+
+from database import async_session
 from services.backup_service import BackupService
 
 # Load environment variables
@@ -36,7 +37,7 @@ async def main():
         stats = await backup_service.export_from_database(session)
 
         if stats.success:
-            print(f"✓ Sync successful!")
+            print("✓ Sync successful!")
             print(f"  Users: {stats.users_processed}")
             print(f"  Tweets: {stats.tweets_processed}")
 
@@ -52,7 +53,7 @@ async def main():
                     old_backup.unlink()
                     print(f"  Removed: {old_backup.name}")
         else:
-            print(f"✗ Sync failed!")
+            print("✗ Sync failed!")
             for error in stats.errors:
                 print(f"  Error: {error}")
             sys.exit(1)
