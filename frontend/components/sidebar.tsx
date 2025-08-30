@@ -2,7 +2,7 @@
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
-import { MessageSquare, Shield, TrendingUp, Users } from "lucide-react";
+import { MessageSquare, TrendingUp, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -10,7 +10,6 @@ const navigation = [
   { name: "Market", href: "/", icon: TrendingUp },
   { name: "Feed", href: "/feed", icon: MessageSquare },
   { name: "Traders", href: "/traders", icon: Users },
-  { name: "Admin", href: "/admin", icon: Shield },
 ];
 
 export function Sidebar() {
