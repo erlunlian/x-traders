@@ -123,6 +123,23 @@ export default function AdminPage() {
     }
   };
 
+  const runDbUpgrade = async () => {
+    setMessage(null);
+    setBusy("upgrade");
+    try {
+      const res = await apiClient.post<{ ok: boolean; message?: string }>(
+        "/api/admin/db/upgrade"
+      );
+      setMessage(res.message || "DB upgrade completed");
+    } catch (err) {
+      setMessage(
+        err instanceof Error ? err.message : "Failed to run DB upgrade"
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <div className="container mx-auto px-8 py-6">
       <div className="flex items-center justify-end mb-4">
@@ -186,6 +203,15 @@ export default function AdminPage() {
             onClick={runSyncTweets}
           >
             {busy === "sync" ? "Syncing..." : "Sync Tweets"}
+          </Button>
+        </div>
+        <div className="flex gap-2 items-center">
+          <Button
+            variant="default"
+            disabled={busy !== null}
+            onClick={runDbUpgrade}
+          >
+            {busy === "upgrade" ? "Running DB Upgrade..." : "Run DB Upgrade"}
           </Button>
         </div>
       </div>

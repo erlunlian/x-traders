@@ -154,3 +154,36 @@ async def tweets_sync():
         }
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Sync failed: {err}") from err
+
+
+@router.post("/db/upgrade")
+async def db_upgrade():
+    """Apply Alembic migrations (upgrade head). Admin-only.
+
+    Runs alembic.command.upgrade programmatically using the project's alembic.ini.
+    """
+    import asyncio
+    from pathlib import Path
+
+    def _upgrade() -> str:
+        try:
+            from alembic import command
+            from alembic.config import Config
+        except Exception as import_err:  # pragma: no cover - defensive
+            raise RuntimeError(f"Alembic not available: {import_err}") from import_err
+
+        # Resolve alembic.ini relative to backend/ directory
+        cfg_path = Path(__file__).resolve().parent.parent / "alembic.ini"
+        if not cfg_path.exists():
+            raise RuntimeError(f"alembic.ini not found at {cfg_path}")
+
+        cfg = Config(str(cfg_path))
+        # env.py reads DATABASE_URL from environment
+        command.upgrade(cfg, "head")
+        return "Migrations applied (upgrade head)"
+
+    try:
+        message = await asyncio.to_thread(_upgrade)
+        return {"ok": True, "message": message}
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"DB upgrade failed: {err}") from err
