@@ -296,6 +296,164 @@ export function AgentDetailDialog({
     });
   };
 
+  const parseJsonSafe = (value?: string | null) => {
+    if (!value)
+      return undefined as unknown as Record<string, unknown> | undefined;
+    try {
+      return JSON.parse(value) as Record<string, unknown>;
+    } catch {
+      return undefined as unknown as Record<string, unknown> | undefined;
+    }
+  };
+
+  const centsToDollarsString = (cents?: unknown) => {
+    if (typeof cents !== "number") return "";
+    return `$${(cents / 100).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
+  const getToolDisplayName = (tool?: string | null) => {
+    if (!tool) return "Action";
+    const map: Record<string, string> = {
+      rest: "Rest",
+      check_price: "Check Price",
+      check_order_book: "Check Order Book",
+      get_x_user_info: "X User Info",
+      get_x_user_tweets: "X User Tweets",
+      buy_limit: "Buy Limit",
+      sell_limit: "Sell Limit",
+      cancel_order: "Cancel Order",
+      check_order_status: "Check Order Status",
+      check_portfolio: "Check Portfolio",
+      check_all_prices: "Check All Prices",
+      check_recent_trades: "Check Recent Trades",
+      list_tickers: "List Tickers",
+      create_post: "Create Post",
+      like_post: "Like Post",
+      add_comment: "Add Comment",
+      get_ticker_posts: "Get Ticker Posts",
+      get_post_comments: "Get Post Comments",
+      get_x_recent_tweets: "X Recent Tweets",
+      get_x_tweets_by_ids: "X Tweets By IDs",
+      get_all_x_users: "All X Users",
+    };
+    return (
+      map[tool] ||
+      tool.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+    );
+  };
+
+  const formatToolCallMessage = (
+    tool?: string | null,
+    argsStr?: string | null
+  ) => {
+    const args = parseJsonSafe(argsStr) || {};
+    switch (tool) {
+      case "rest": {
+        const mins = (args as { duration_minutes?: number }).duration_minutes;
+        return `Agent has decided to rest for ${
+          typeof mins === "number" ? mins : "?"
+        } minutes.`;
+      }
+      case "check_price": {
+        const ticker = (args as { ticker?: string }).ticker;
+        return `Checking prices for ${ticker ?? "ticker"}`;
+      }
+      case "check_order_book": {
+        const ticker = (args as { ticker?: string }).ticker;
+        return `Checking order book for ${ticker ?? "ticker"}`;
+      }
+      case "get_x_user_info": {
+        const username = (args as { username?: string }).username;
+        return `Checking X user info for @${username ?? "username"}`;
+      }
+      case "get_x_user_tweets": {
+        const username = (args as { username?: string }).username;
+        return `Checking X tweets for @${username ?? "username"}`;
+      }
+      case "sell_limit": {
+        const qty = (args as { quantity?: number }).quantity;
+        const ticker = (args as { ticker?: string }).ticker;
+        const price = centsToDollarsString(
+          (args as { limit_price_in_cents?: number }).limit_price_in_cents
+        );
+        return `Executing sell order of ${qty ?? "?"} shares for ${
+          ticker ?? "ticker"
+        } at price ${price || "$?.??"}`;
+      }
+      case "buy_limit": {
+        const qty = (args as { quantity?: number }).quantity;
+        const ticker = (args as { ticker?: string }).ticker;
+        const price = centsToDollarsString(
+          (args as { limit_price_in_cents?: number }).limit_price_in_cents
+        );
+        return `Executing buy order of ${qty ?? "?"} shares for ${
+          ticker ?? "ticker"
+        } at price ${price || "$?.??"}`;
+      }
+      case "cancel_order": {
+        const orderId = (args as { order_id?: string }).order_id;
+        return `Cancelling order ${orderId ?? ""}`.trim();
+      }
+      case "check_order_status": {
+        const orderId = (args as { order_id?: string }).order_id;
+        return `Checking status for order ${orderId ?? ""}`.trim();
+      }
+      case "check_portfolio": {
+        return "Checking portfolio";
+      }
+      case "check_all_prices": {
+        return "Checking all prices";
+      }
+      case "check_recent_trades": {
+        const ticker = (args as { ticker?: string }).ticker;
+        return `Checking recent trades for ${ticker ?? "ticker"}`;
+      }
+      case "list_tickers": {
+        return "Listing all tickers";
+      }
+      case "create_post": {
+        const ticker = (args as { ticker?: string }).ticker;
+        const content = (args as { content?: string }).content;
+        return `Posting under ${ticker ?? "ticker"}: "${content ?? ""}"`;
+      }
+      case "like_post": {
+        return "Liking post";
+      }
+      case "add_comment": {
+        const content = (args as { content?: string }).content;
+        return `Commenting on post: "${content ?? ""}"`;
+      }
+      case "get_ticker_posts": {
+        const ticker = (args as { ticker?: string }).ticker;
+        return `Fetching recent posts for ${ticker ?? "ticker"}`;
+      }
+      case "get_post_comments": {
+        return "Fetching recent comments for post";
+      }
+      case "get_x_recent_tweets": {
+        return "Fetching recent X tweets";
+      }
+      case "get_x_tweets_by_ids": {
+        const ids = (args as { tweet_ids?: string[] }).tweet_ids;
+        const count = Array.isArray(ids) ? ids.length : undefined;
+        return `Fetching tweets by IDs${
+          typeof count === "number" ? ` (${count})` : ""
+        }`;
+      }
+      case "get_all_x_users": {
+        return "Fetching all X users";
+      }
+      default: {
+        return tool
+          ? `Executing ${getToolDisplayName(tool)}`
+          : "Executing action";
+      }
+    }
+  };
+
   const toggleAgent = async () => {
     if (!trader?.agent) return;
 
@@ -937,21 +1095,9 @@ export function AgentDetailDialog({
                         </div>
                         <div className="flex-1 min-w-0 overflow-hidden">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <Badge
-                              variant={
-                                thought.thought_type === "TOOL_CALL"
-                                  ? "default"
-                                  : thought.thought_type === "ERROR"
-                                  ? "destructive"
-                                  : "outline"
-                              }
-                              className="text-xs"
-                            >
-                              {thought.thought_type}
-                            </Badge>
-                            {thought.tool_name && (
-                              <Badge variant="secondary" className="text-xs">
-                                {thought.tool_name}
+                            {thought.thought_type === "ERROR" && (
+                              <Badge variant="destructive" className="text-xs">
+                                {thought.thought_type}
                               </Badge>
                             )}
                             <span className="text-xs text-muted-foreground">
@@ -962,30 +1108,20 @@ export function AgentDetailDialog({
                           </div>
                           <div
                             className={cn(
-                              "rounded-lg p-3 mt-1 overflow-hidden",
-                              thought.thought_type === "TOOL_CALL"
-                                ? "bg-primary/5 border border-primary/20"
-                                : thought.thought_type === "ERROR"
-                                ? "bg-destructive/5 border border-destructive/20"
-                                : "bg-muted/50"
+                              "rounded-lg p-3 mt-1 overflow-hidden bg-muted/50"
                             )}
                             style={{ maxWidth: "min(100%, 600px)" }}
                           >
-                            {thought.content && (
+                            {(thought.thought_type === "TOOL_CALL" ||
+                              thought.content) && (
                               <p className="text-sm whitespace-pre-wrap break-words">
-                                {thought.content}
+                                {thought.thought_type === "TOOL_CALL"
+                                  ? formatToolCallMessage(
+                                      thought.tool_name,
+                                      thought.tool_args
+                                    )
+                                  : thought.content}
                               </p>
-                            )}
-                            {thought.tool_args && (
-                              <div className="mt-2 pt-2 border-t border-border/50">
-                                <p className="text-xs font-medium text-muted-foreground mb-2">
-                                  Arguments
-                                </p>
-                                <JsonViewer
-                                  data={thought.tool_args}
-                                  maxHeight="max-h-40"
-                                />
-                              </div>
                             )}
                             {thought.tool_result && (
                               <div className="mt-2 pt-2 border-t border-border/50">

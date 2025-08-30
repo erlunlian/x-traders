@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronRight, ChevronUp } from "lucide-react";
 import { useState } from "react";
 
 interface JsonViewerProps {
@@ -40,46 +40,55 @@ export function JsonViewer({
 
   return (
     <div className={cn("block w-full", className)}>
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-      >
-        {expanded ? (
-          <ChevronDown className="h-3 w-3" />
-        ) : (
-          <ChevronRight className="h-3 w-3" />
-        )}
-        <span>{expanded ? "Collapse" : "Expand"}</span>
-        <span className="text-muted-foreground/60 ml-1">
-          ({formattedData.length} chars)
-        </span>
-      </button>
-
-      {expanded && (
-        <div
-          className={cn(
-            "mt-1 rounded border border-border/50 bg-background/50 overflow-auto overscroll-contain",
-            maxHeight
-          )}
-        >
-          <pre
-            className="text-xs p-2 whitespace-pre block max-w-full"
-            style={{
-              wordBreak: "normal",
-              overflowWrap: "normal",
-              width: "100%",
-              minWidth: 0,
-            }}
+      {expanded ? (
+        <>
+          <div
+            className={cn(
+              "rounded border border-border/50 bg-background/50 overflow-auto overscroll-contain",
+              maxHeight
+            )}
           >
-            <code>{formattedData}</code>
-          </pre>
-        </div>
-      )}
+            <pre
+              className="text-xs p-2 whitespace-pre block max-w-full"
+              style={{
+                wordBreak: "normal",
+                overflowWrap: "normal",
+                width: "100%",
+                minWidth: 0,
+              }}
+            >
+              <code>{formattedData}</code>
+            </pre>
+          </div>
 
-      {!expanded && (
-        <div className="text-xs text-muted-foreground font-mono truncate mt-1">
-          {formattedData.substring(0, 80)}...
-        </div>
+          <button
+            onClick={() => setExpanded(false)}
+            className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ChevronUp className="h-3 w-3" />
+            <span>Collapse</span>
+            <span className="text-muted-foreground/60 ml-1">
+              ({formattedData.length} chars)
+            </span>
+          </button>
+        </>
+      ) : (
+        <>
+          <div className="text-xs text-muted-foreground font-mono truncate">
+            {formattedData.substring(0, 80)}...
+          </div>
+
+          <button
+            onClick={() => setExpanded(true)}
+            className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ChevronRight className="h-3 w-3" />
+            <span>Expand</span>
+            <span className="text-muted-foreground/60 ml-1">
+              ({formattedData.length} chars)
+            </span>
+          </button>
+        </>
       )}
     </div>
   );

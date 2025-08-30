@@ -15,7 +15,7 @@ class ModelConfig(BaseModel):
     model_id: LLMModel
     provider: ModelProvider
     context_window: int
-    compression_threshold: float = 0.8  # Compress at 80% of context
+    compression_threshold: float = 0.5  # Compress at 50% of context
     input_cost_per_1m: float = Field(description="Cost per 1 million input tokens in USD")
     output_cost_per_1m: float = Field(description="Cost per 1 million output tokens in USD")
     supports_functions: bool = True
