@@ -13,10 +13,19 @@ export class ApiClient {
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
 
+    let authHeader: Record<string, string> = {};
+    if (typeof window !== "undefined") {
+      try {
+        const token = window.localStorage.getItem("admin_token");
+        if (token) authHeader = { Authorization: `Bearer ${token}` };
+      } catch {}
+    }
+
     const response = await fetch(url, {
       ...options,
       headers: {
         "Content-Type": "application/json",
+        ...authHeader,
         ...options.headers,
       },
     });

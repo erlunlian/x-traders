@@ -48,7 +48,7 @@ type SortField =
   | "created_at";
 type SortDirection = "asc" | "desc";
 
-export function AgentLeaderboard() {
+export function AgentLeaderboard({ readOnly = true }: { readOnly?: boolean }) {
   const [agents, setAgents] = useState<AgentLeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -292,40 +292,42 @@ export function AgentLeaderboard() {
               Track performance of all AI trading agents
             </p>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                disabled={busy || selectedIds.length === 0}
-                onClick={() => bulkToggle(true)}
-              >
-                Start Selected
-              </Button>
-              <Button
-                variant="secondary"
-                disabled={busy || selectedIds.length === 0}
-                onClick={() => bulkToggle(false)}
-              >
-                Pause Selected
-              </Button>
-              <Button
-                variant="destructive"
-                disabled={busy || selectedIds.length === 0 || !canBulkDelete}
-                onClick={bulkDelete}
-                title={
-                  !canBulkDelete && selectedIds.length > 0
-                    ? "Cannot delete agents with trades"
-                    : undefined
-                }
-              >
-                Delete Selected
+          {!readOnly && (
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  disabled={busy || selectedIds.length === 0}
+                  onClick={() => bulkToggle(true)}
+                >
+                  Start Selected
+                </Button>
+                <Button
+                  variant="secondary"
+                  disabled={busy || selectedIds.length === 0}
+                  onClick={() => bulkToggle(false)}
+                >
+                  Pause Selected
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={busy || selectedIds.length === 0 || !canBulkDelete}
+                  onClick={bulkDelete}
+                  title={
+                    !canBulkDelete && selectedIds.length > 0
+                      ? "Cannot delete agents with trades"
+                      : undefined
+                  }
+                >
+                  Delete Selected
+                </Button>
+              </div>
+              <Button onClick={() => setCreateAgentOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Agent
               </Button>
             </div>
-            <Button onClick={() => setCreateAgentOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Agent
-            </Button>
-          </div>
+          )}
         </div>
       </div>
 
@@ -334,8 +336,9 @@ export function AgentLeaderboard() {
           <CardHeader>
             <CardTitle>No Agents Yet</CardTitle>
             <CardDescription>
-              No AI agents have been created. Click &quot;Create Agent&quot; to
-              add your first AI trader.
+              {readOnly
+                ? "No AI agents have been created."
+                : 'No AI agents have been created. Click "Create Agent" to add your first AI trader.'}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -345,22 +348,24 @@ export function AgentLeaderboard() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[40px]">
-                    <input
-                      type="checkbox"
-                      aria-label="Select all"
-                      checked={
-                        agents.length > 0 &&
-                        agents.every((a) => selected[a.agent_id])
-                      }
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        const next: Record<string, boolean> = {};
-                        for (const a of agents) next[a.agent_id] = checked;
-                        setSelected(next);
-                      }}
-                    />
-                  </TableHead>
+                  {!readOnly && (
+                    <TableHead className="w-[40px]">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all"
+                        checked={
+                          agents.length > 0 &&
+                          agents.every((a) => selected[a.agent_id])
+                        }
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          const next: Record<string, boolean> = {};
+                          for (const a of agents) next[a.agent_id] = checked;
+                          setSelected(next);
+                        }}
+                      />
+                    </TableHead>
+                  )}
                   <TableHead className="w-[60px]">Rank</TableHead>
                   <TableHead>
                     <Button
@@ -446,19 +451,21 @@ export function AgentLeaderboard() {
               <TableBody>
                 {sortedAgents.map((agent, index) => (
                   <TableRow key={agent.agent_id} className="hover:bg-muted/50">
-                    <TableCell>
-                      <input
-                        type="checkbox"
-                        aria-label={`Select ${agent.name}`}
-                        checked={!!selected[agent.agent_id]}
-                        onChange={(e) =>
-                          setSelected((prev) => ({
-                            ...prev,
-                            [agent.agent_id]: e.target.checked,
-                          }))
-                        }
-                      />
-                    </TableCell>
+                    {!readOnly && (
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${agent.name}`}
+                          checked={!!selected[agent.agent_id]}
+                          onChange={(e) =>
+                            setSelected((prev) => ({
+                              ...prev,
+                              [agent.agent_id]: e.target.checked,
+                            }))
+                          }
+                        />
+                      </TableCell>
+                    )}
                     <TableCell>
                       <div className="flex items-center">
                         <span className="font-mono text-sm">#{index + 1}</span>
@@ -551,13 +558,16 @@ export function AgentLeaderboard() {
         traderId={selectedTraderId}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+        readOnly={readOnly}
       />
 
-      <CreateAgentDialog
-        open={createAgentOpen}
-        onOpenChange={setCreateAgentOpen}
-        onAgentCreated={fetchAgents}
-      />
+      {!readOnly && (
+        <CreateAgentDialog
+          open={createAgentOpen}
+          onOpenChange={setCreateAgentOpen}
+          onAgentCreated={fetchAgents}
+        />
+      )}
     </div>
   );
 }

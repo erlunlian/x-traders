@@ -5,8 +5,9 @@ AI Agents API endpoints
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 
+from api.auth import require_admin
 from database import async_session
 from database.repositories import LedgerRepository, PositionRepository
 from database.repositories_agents import AgentRepository
@@ -31,7 +32,7 @@ router = APIRouter()
 
 
 @router.post("/", response_model=Agent)
-async def create_agent(request: CreateAgentRequest) -> Agent:
+async def create_agent(request: CreateAgentRequest, _=Depends(require_admin)) -> Agent:
     """
     Create a new AI agent along with a new trader account.
     """
@@ -211,7 +212,9 @@ async def get_agent(agent_id: UUID) -> Agent:
 
 
 @router.put("/{agent_id}", response_model=Agent)
-async def update_agent(agent_id: UUID, request: UpdateAgentRequest) -> Agent:
+async def update_agent(
+    agent_id: UUID, request: UpdateAgentRequest, _=Depends(require_admin)
+) -> Agent:
     """
     Update agent configuration.
     """
@@ -300,6 +303,7 @@ async def get_agent_memory(agent_id: UUID) -> AgentMemoryState:
 async def bulk_toggle_agents(
     agent_ids: List[UUID] = Body(..., embed=True),
     is_active: bool = Body(..., embed=True),
+    _=Depends(require_admin),
 ) -> List[Agent]:
     """
     Bulk start/pause agents by setting is_active.
@@ -321,7 +325,7 @@ async def bulk_toggle_agents(
 
 
 @router.post("/{agent_id}/toggle", response_model=Agent)
-async def toggle_agent(agent_id: UUID) -> Agent:
+async def toggle_agent(agent_id: UUID, _=Depends(require_admin)) -> Agent:
     """
     Toggle agent's active status (pause/resume).
     """
@@ -353,7 +357,7 @@ async def toggle_agent(agent_id: UUID) -> Agent:
 
 
 @router.delete("/{agent_id}")
-async def delete_agent(agent_id: UUID):
+async def delete_agent(agent_id: UUID, _=Depends(require_admin)):
     """
     Delete a single agent if they have zero trades.
     """
@@ -382,7 +386,9 @@ async def delete_agent(agent_id: UUID):
 
 
 @router.post("/bulk/delete")
-async def bulk_delete_agents(agent_ids: List[UUID] = Body(..., embed=True)):
+async def bulk_delete_agents(
+    agent_ids: List[UUID] = Body(..., embed=True), _=Depends(require_admin)
+):
     """
     Bulk delete agents that have zero trades. Agents with trades are skipped.
     Returns a result summary.

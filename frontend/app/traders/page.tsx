@@ -1,5 +1,5 @@
-import { AgentLeaderboard } from '@/components/agent-leaderboard';
+import { AgentLeaderboard } from "@/components/agent-leaderboard";
 
 export default function TradersPage() {
-  return <AgentLeaderboard />;
+  return <AgentLeaderboard readOnly />;
 }

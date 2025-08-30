@@ -111,6 +111,7 @@ interface AgentDetailDialogProps {
   traderId: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  readOnly?: boolean;
 }
 
 type SectionType = "overview" | "trades" | "activity" | "memory";
@@ -126,6 +127,7 @@ export function AgentDetailDialog({
   traderId,
   open,
   onOpenChange,
+  readOnly = true,
 }: AgentDetailDialogProps) {
   const [activeSection, setActiveSection] = useState<SectionType>("overview");
   const [trader, setTrader] = useState<TraderDetail | null>(null);
@@ -456,6 +458,7 @@ export function AgentDetailDialog({
 
   const toggleAgent = async () => {
     if (!trader?.agent) return;
+    if (readOnly) return;
 
     try {
       setTogglingAgent(true);
@@ -480,6 +483,7 @@ export function AgentDetailDialog({
   };
 
   const startEdit = () => {
+    if (readOnly) return;
     if (trader?.agent) {
       setEditedAgent({
         ...trader.agent,
@@ -495,6 +499,7 @@ export function AgentDetailDialog({
 
   const saveAgentChanges = async () => {
     if (!trader?.agent || !editedAgent) return;
+    if (readOnly) return;
 
     try {
       setSaving(true);
@@ -552,57 +557,69 @@ export function AgentDetailDialog({
                 <div className="flex gap-2">
                   {!editMode ? (
                     <>
-                      <Button size="sm" variant="outline" onClick={startEdit}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={
-                          trader.agent.is_active ? "destructive" : "default"
-                        }
-                        onClick={toggleAgent}
-                        disabled={togglingAgent}
-                      >
-                        {togglingAgent ? (
-                          "..."
-                        ) : trader.agent.is_active ? (
-                          <>
-                            <Pause className="mr-2 h-4 w-4" />
-                            Pause
-                          </>
-                        ) : (
-                          <>
-                            <Play className="mr-2 h-4 w-4" />
-                            Resume
-                          </>
-                        )}
-                      </Button>
+                      {!readOnly && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={startEdit}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={
+                              trader.agent.is_active ? "destructive" : "default"
+                            }
+                            onClick={toggleAgent}
+                            disabled={togglingAgent}
+                          >
+                            {togglingAgent ? (
+                              "..."
+                            ) : trader.agent.is_active ? (
+                              <>
+                                <Pause className="mr-2 h-4 w-4" />
+                                Pause
+                              </>
+                            ) : (
+                              <>
+                                <Play className="mr-2 h-4 w-4" />
+                                Resume
+                              </>
+                            )}
+                          </Button>
+                        </>
+                      )}
                     </>
                   ) : (
                     <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={cancelEdit}
-                        disabled={saving}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="default"
-                        onClick={saveAgentChanges}
-                        disabled={saving}
-                      >
-                        {saving ? (
-                          "..."
-                        ) : (
-                          <>
-                            <Save className="mr-2 h-4 w-4" />
-                            Save
-                          </>
-                        )}
-                      </Button>
+                      {!readOnly && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={cancelEdit}
+                            disabled={saving}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={saveAgentChanges}
+                            disabled={saving}
+                          >
+                            {saving ? (
+                              "..."
+                            ) : (
+                              <>
+                                <Save className="mr-2 h-4 w-4" />
+                                Save
+                              </>
+                            )}
+                          </Button>
+                        </>
+                      )}
                     </>
                   )}
                 </div>
@@ -615,25 +632,27 @@ export function AgentDetailDialog({
                 {!editMode ? (
                   <Badge variant="outline">{trader.agent.llm_model}</Badge>
                 ) : (
-                  <Select
-                    value={editedAgent?.llm_model}
-                    onValueChange={(value) =>
-                      setEditedAgent((prev) =>
-                        prev ? { ...prev, llm_model: value } : null
-                      )
-                    }
-                  >
-                    <SelectTrigger className="w-48 h-8">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableModels.map((model) => (
-                        <SelectItem key={model.id} value={model.value}>
-                          {model.display_name} ({model.provider})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  !readOnly && (
+                    <Select
+                      value={editedAgent?.llm_model}
+                      onValueChange={(value) =>
+                        setEditedAgent((prev) =>
+                          prev ? { ...prev, llm_model: value } : null
+                        )
+                      }
+                    >
+                      <SelectTrigger className="w-48 h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableModels.map((model) => (
+                          <SelectItem key={model.id} value={model.value}>
+                            {model.display_name} ({model.provider})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )
                 )}
               </div>
 
@@ -645,21 +664,26 @@ export function AgentDetailDialog({
                     {trader.agent.temperature}
                   </span>
                 ) : (
-                  <Input
-                    type="number"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                    value={editedAgent?.temperature || 0}
-                    onChange={(e) =>
-                      setEditedAgent((prev) =>
-                        prev
-                          ? { ...prev, temperature: parseFloat(e.target.value) }
-                          : null
-                      )
-                    }
-                    className="w-20 h-8"
-                  />
+                  !readOnly && (
+                    <Input
+                      type="number"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={editedAgent?.temperature || 0}
+                      onChange={(e) =>
+                        setEditedAgent((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                temperature: parseFloat(e.target.value),
+                              }
+                            : null
+                        )
+                      }
+                      className="w-20 h-8"
+                    />
+                  )
                 )}
               </div>
 
