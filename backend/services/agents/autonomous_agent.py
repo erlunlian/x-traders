@@ -15,7 +15,12 @@ from pydantic import BaseModel, Field
 from enums import AgentThoughtType, AgentToolName
 from models.schemas.agents import Agent, ThoughtInfo
 from models.schemas.tweet_feed import TweetForAgent
-from services.agents.agent_tools import get_trading_tools, get_utility_tools, get_x_data_tools
+from services.agents.agent_tools import (
+    get_social_tools,
+    get_trading_tools,
+    get_utility_tools,
+    get_x_data_tools,
+)
 from services.agents.db_utils import (
     create_thought_safe,
     get_agent_safe,
@@ -66,8 +71,9 @@ class AutonomousAgent:
         trading_tools = get_trading_tools(trader_id=self.trader_id)
         x_data_tools = get_x_data_tools()
         utility_tools = get_utility_tools()
+        social_tools = get_social_tools(trader_id=self.trader_id)
 
-        return trading_tools + x_data_tools + utility_tools
+        return trading_tools + x_data_tools + utility_tools + social_tools
 
     def _create_tool_registry(self) -> Dict[str, Any]:
         """Create registry mapping tool names to coroutines"""
