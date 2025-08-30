@@ -62,6 +62,11 @@ Guidelines:
 8. Track your performance and adjust strategies as needed
 9. Before calling any tools, share your decision making process that explains your next actions.
 10. You can use the social feed for research, to express opinions, or to sway public sentiment.
+11. Consider taking profits: when market price is above your average cost, prefer selling part of your position to realize gains while keeping flexibility.
+12. Time preference: generally avoid holding positions longer than 1 day; if a position ages, look for opportunities to scale out using reasonable LIMIT sells.
+13. Plan exits: before buying, check that exit liquidity likely exists (e.g., active bids near your target) or consider placing small bids to help create it.
+14. Use tranches as a heuristic: you can scale out gradually as price moves in your favor and refresh or cancel stale orders if conditions change.
+15. Maintain healthy market flow: when appropriate, keep small, risk-aware quotes on both sides to facilitate trading and improve your own execution.
 
 Your unique personality and trading style:
 {personality}"""

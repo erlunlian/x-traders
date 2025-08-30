@@ -30,8 +30,18 @@ from enums import OrderType, Side
 from models.schemas import OrderRequest
 
 LONG_TIF_SECONDS = 365 * 24 * 60 * 60  # 1 year
-TREASURY_QUANTITY = 100
-ASK_PRICE_CENTS = 100  # $1.00
+TREASURY_QUANTITY = 10000
+ASK_PRICE_CENTS = 5000  # $50.00
+DEFAULT_LADDER_RELATIVE = {
+    0.80: 0.05,  # much lower bids
+    0.90: 0.10,
+    0.95: 0.15,
+    0.98: 0.20,
+    1.02: 0.20,  # asks above par
+    1.05: 0.15,
+    1.10: 0.10,
+    1.20: 0.05,
+}
 
 
 async def get_or_create_treasury_trader() -> TraderAccount:
@@ -104,34 +114,38 @@ async def ensure_treasury_shares(trader: TraderAccount, ticker: str) -> None:
 
 
 async def ensure_sell_order(trader: TraderAccount, ticker: str) -> None:
-    """Ensure a single long-dated $1.00 LIMIT SELL order for full TREASURY_QUANTITY exists."""
+    """Ensure a long-dated LIMIT SELL ladder exists around $1.00 with multiple price levels."""
     async with get_db_transaction() as session:
         order_repo = OrderRepository(session)
 
-        # Skip if an active SELL order already exists for this ticker by treasury
         existing_orders = await order_repo.get_trader_unfilled_orders(trader.trader_id)
-        for o in existing_orders:
-            if (
-                o.ticker == ticker
-                and o.order_type == OrderType.LIMIT
-                and o.limit_price == ASK_PRICE_CENTS
-                and o.side.name == "SELL"
-            ):
-                return
-
-        # Create order in DB with long expiration
-        order_request = OrderRequest(
-            trader_id=trader.trader_id,
-            ticker=ticker,
-            side=Side.SELL,
-            order_type=OrderType.LIMIT,
-            quantity=TREASURY_QUANTITY,
-            limit_price_in_cents=ASK_PRICE_CENTS,
-            tif_seconds=LONG_TIF_SECONDS,
-        )
+        existing_prices = {
+            (o.side.name, o.limit_price)
+            for o in existing_orders
+            if o.ticker == ticker and o.order_type == OrderType.LIMIT
+        }
 
         expires_at = datetime.now(timezone.utc) + timedelta(seconds=LONG_TIF_SECONDS)
-        order = await order_repo.create_order_without_commit(order_request, expires_at)
+
+        # Create ask levels above $1
+        for mult, frac in DEFAULT_LADDER_RELATIVE.items():
+            if mult <= 1.0:
+                continue
+            price_cents = int(round(ASK_PRICE_CENTS * mult))
+            qty = max(1, int(TREASURY_QUANTITY * frac))
+            key = ("SELL", price_cents)
+            if key in existing_prices:
+                continue
+            order_request = OrderRequest(
+                trader_id=trader.trader_id,
+                ticker=ticker,
+                side=Side.SELL,
+                order_type=OrderType.LIMIT,
+                quantity=qty,
+                limit_price_in_cents=price_cents,
+                tif_seconds=LONG_TIF_SECONDS,
+            )
+            await order_repo.create_order_without_commit(order_request, expires_at)
         await session.commit()
 
     # After commit, if the engine is running and the processor for this ticker exists,
@@ -139,10 +153,39 @@ async def ensure_sell_order(trader: TraderAccount, ticker: str) -> None:
     try:
         from engine import order_router
 
-        await order_router.submit_order(order.order_id, ticker)
+        # Submit all unfilled treasury limit orders for this ticker
+        async with get_db_transaction() as session:
+            order_repo = OrderRepository(session)
+            open_orders = await order_repo.get_trader_unfilled_orders(trader.trader_id)
+            for o in open_orders:
+                if o.ticker == ticker and o.order_type == OrderType.LIMIT:
+                    await order_router.submit_order(o.order_id, ticker)
     except Exception:
         # Engine not running/initialized; will appear after next startup rebuild
         pass
+
+
+async def ensure_bid_ladder(trader: TraderAccount, ticker: str) -> None:
+    """Post admin BUY ladder to provide initial bid liquidity."""
+    from services.trading import place_admin_order
+
+    for mult, frac in DEFAULT_LADDER_RELATIVE.items():
+        if mult >= 1.0:
+            continue
+        price_cents = int(round(ASK_PRICE_CENTS * mult))
+        qty = max(1, int(TREASURY_QUANTITY * frac))
+        try:
+            await place_admin_order(
+                trader_id=trader.trader_id,
+                ticker=ticker,
+                side=Side.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=qty,
+                limit_price_in_cents=price_cents,
+                tif_seconds=LONG_TIF_SECONDS,
+            )
+        except Exception:
+            continue
 
 
 async def has_circulating_shares(ticker: str, treasury: TraderAccount) -> bool:
@@ -169,9 +212,10 @@ async def main() -> None:
             continue
         await ensure_treasury_shares(trader, ticker)
         await ensure_sell_order(trader, ticker)
+        await ensure_bid_ladder(trader, ticker)
 
     print(
-        f"Seeded treasury {trader.trader_id} with {TREASURY_QUANTITY} shares and $1 asks for {len(TICKERS)} tickers."
+        f"Seeded treasury {trader.trader_id} with {TREASURY_QUANTITY} shares and bid/ask ladders around ${ASK_PRICE_CENTS/100} for {len(TICKERS)} tickers."
     )
 
 
