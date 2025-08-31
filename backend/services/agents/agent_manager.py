@@ -3,14 +3,17 @@ Agent manager service that orchestrates all AI agents
 """
 
 import asyncio
-from typing import Any, Dict, List
+import traceback
+from collections import deque
+from datetime import datetime, timezone
+from typing import Any, Deque, Dict, List
 from uuid import UUID
 
 from database import async_session
 from database.repositories import AgentRepository
 from models.schemas.agents import Agent
 from services.agents.autonomous_agent import AutonomousAgent
-from services.agents.db_utils import get_agent_or_none_safe, get_active_agents_safe
+from services.agents.db_utils import get_active_agents_safe, get_agent_or_none_safe
 
 
 class AgentManager:
@@ -20,6 +23,9 @@ class AgentManager:
         self.agents: Dict[UUID, AutonomousAgent] = {}
         self.running_tasks: Dict[UUID, asyncio.Task] = {}
         self.running = False
+        # In-memory error buffers
+        self.agent_errors: Dict[UUID, Deque[Dict[str, Any]]] = {}
+        self.monitor_errors: Deque[Dict[str, Any]] = deque(maxlen=200)
 
     async def start(self) -> None:
         """Start the agent manager and all active agents"""
@@ -35,6 +41,52 @@ class AgentManager:
             await self.start_agent(agent)
 
         print(f"All agents started. Managing {len(self.agents)} agents.")
+
+    def _record_agent_error(self, agent_id: UUID, error: BaseException) -> None:
+        """Record an agent crash/error into a bounded deque."""
+        if agent_id not in self.agent_errors:
+            self.agent_errors[agent_id] = deque(maxlen=100)
+        error_entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "agent_id": str(agent_id),
+            "error_type": type(error).__name__,
+            "message": str(error),
+            "traceback": "".join(
+                traceback.format_exception(type(error), error, error.__traceback__)
+            ),
+        }
+        self.agent_errors[agent_id].append(error_entry)
+
+    def _record_monitor_error(self, error: BaseException) -> None:
+        """Record a monitor loop error into a bounded deque."""
+        error_entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "error_type": type(error).__name__,
+            "message": str(error),
+            "traceback": "".join(
+                traceback.format_exception(type(error), error, error.__traceback__)
+            ),
+        }
+        self.monitor_errors.append(error_entry)
+
+    async def get_monitor_errors(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Fetch recent monitor loop errors (most recent last)."""
+        if limit <= 0:
+            return list(self.monitor_errors)
+        return list(self.monitor_errors)[-limit:]
+
+    async def get_all_agents_errors(self, limit_per_agent: int = 50) -> List[Dict[str, Any]]:
+        """Fetch recent errors for all agents as a flat list with agent_id included."""
+        results: List[Dict[str, Any]] = []
+        for _agent_id, buf in self.agent_errors.items():
+            if limit_per_agent <= 0:
+                slice_items = list(buf)
+            else:
+                slice_items = list(buf)[-limit_per_agent:]
+            results.extend(slice_items)
+        # Sort by timestamp ascending to be consistent (most recent last)
+        results.sort(key=lambda e: e.get("timestamp", ""))
+        return results
 
     async def stop(self) -> None:
         """Stop all agents and the manager"""
@@ -57,9 +109,7 @@ class AgentManager:
         self.agents[agent.agent_id] = autonomous_agent
 
         # Start the agent's run_forever task
-        task = asyncio.create_task(
-            autonomous_agent.run_forever(), name=f"agent_{agent.name}"
-        )
+        task = asyncio.create_task(autonomous_agent.run_forever(), name=f"agent_{agent.name}")
         self.running_tasks[agent.agent_id] = task
 
         print(f"Started agent: {agent.name} (ID: {agent.agent_id})")
@@ -142,6 +192,7 @@ class AgentManager:
                             task.result()
                         except Exception as e:
                             print(f"Agent {agent_id} crashed: {e}")
+                            self._record_agent_error(agent_id, e)
 
                         # Restart the agent
                         print(f"Restarting agent {agent_id}...")
@@ -160,6 +211,7 @@ class AgentManager:
 
             except Exception as e:
                 print(f"Agent monitor error: {e}")
+                self._record_monitor_error(e)
                 await asyncio.sleep(10)
 
 

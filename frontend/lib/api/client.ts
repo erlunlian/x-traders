@@ -30,8 +30,35 @@ export class ApiClient {
       },
     });
 
+    if (response.status === 401) {
+      // On 401, clear token and notify listeners; do not redirect here
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.removeItem("admin_token");
+        } catch {}
+        try {
+          window.dispatchEvent(new CustomEvent("adminUnauthorized"));
+        } catch {}
+      }
+      let msg = `API Error: 401 Unauthorized`;
+      try {
+        const body = await response.json();
+        if (body && (body.message || body.detail)) {
+          msg = String(body.message || body.detail);
+        }
+      } catch {}
+      throw new Error(msg);
+    }
+
     if (!response.ok) {
-      throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      let msg = `API Error: ${response.status} ${response.statusText}`;
+      try {
+        const body = await response.json();
+        if (body && (body.message || body.detail)) {
+          msg = String(body.message || body.detail);
+        }
+      } catch {}
+      throw new Error(msg);
     }
 
     return response.json();

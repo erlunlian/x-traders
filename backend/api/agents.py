@@ -109,6 +109,23 @@ async def get_all_agent_statuses() -> List[dict]:
     return await agent_manager.get_all_agent_statuses()
 
 
+@router.get("/monitor/errors", response_model=List[dict])
+async def get_monitor_errors(limit: int = 100, _=Depends(require_admin)) -> List[dict]:
+    """
+    Get recent errors from the agent monitor loop (in-memory buffer).
+    Most recent errors are returned last.
+    """
+    return await agent_manager.get_monitor_errors(limit=limit)
+
+
+@router.get("/errors", response_model=List[dict])
+async def get_all_agents_errors(limit_per_agent: int = 50, _=Depends(require_admin)) -> List[dict]:
+    """
+    Get recent errors for all agents as a flat list. Each item includes agent_id.
+    """
+    return await agent_manager.get_all_agents_errors(limit_per_agent=limit_per_agent)
+
+
 @router.get("/leaderboard", response_model=AgentLeaderboardResponse)
 async def get_agent_leaderboard() -> AgentLeaderboardResponse:
     """

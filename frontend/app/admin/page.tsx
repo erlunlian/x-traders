@@ -3,6 +3,7 @@
 import { AgentLeaderboard } from "@/components/agent-leaderboard";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api/client";
+import { marketService } from "@/services/market";
 import { useEffect, useState } from "react";
 import AdminLoginPage from "./login/page";
 
@@ -10,6 +11,15 @@ export default function AdminPage() {
   const [hasToken, setHasToken] = useState<boolean | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [monitorErrors, setMonitorErrors] = useState<
+    Array<{
+      timestamp: string;
+      error_type: string;
+      message: string;
+      traceback?: string;
+    }>
+  >([]);
+  const [showTrace, setShowTrace] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     try {
@@ -18,6 +28,33 @@ export default function AdminPage() {
     } catch {
       setHasToken(false);
     }
+    const onUnauthorized = () => setHasToken(false);
+    window.addEventListener(
+      "adminUnauthorized",
+      onUnauthorized as EventListener
+    );
+    return () => {
+      window.removeEventListener(
+        "adminUnauthorized",
+        onUnauthorized as EventListener
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchErrors = async () => {
+      try {
+        const errs = await marketService.getMonitorErrors(100);
+        if (!cancelled) setMonitorErrors(errs);
+      } catch {}
+    };
+    fetchErrors();
+    const id = setInterval(fetchErrors, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
   }, []);
 
   if (hasToken === null) return null;
@@ -218,6 +255,46 @@ export default function AdminPage() {
       {message && (
         <div className="mb-4 text-sm text-muted-foreground">{message}</div>
       )}
+      <div className="mb-6">
+        <h2 className="text-base font-semibold mb-2">Agent Monitor Errors</h2>
+        {monitorErrors.length === 0 ? (
+          <div className="text-sm text-muted-foreground">No recent errors</div>
+        ) : (
+          <div className="space-y-2">
+            {monitorErrors.map((e, idx) => (
+              <div key={`${e.timestamp}-${idx}`} className="rounded border p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="text-sm">
+                    <div className="font-medium">{e.error_type}</div>
+                    <div className="text-muted-foreground break-words">
+                      {e.message}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {new Date(e.timestamp).toLocaleString()}
+                    </div>
+                  </div>
+                  {e.traceback && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setShowTrace((s) => ({ ...s, [idx]: !s[idx] }))
+                      }
+                    >
+                      {showTrace[idx] ? "Hide Trace" : "Show Trace"}
+                    </Button>
+                  )}
+                </div>
+                {e.traceback && showTrace[idx] && (
+                  <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs bg-muted p-2 rounded">
+                    {e.traceback}
+                  </pre>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       <AgentLeaderboard readOnly={false} />
     </div>
   );
