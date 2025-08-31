@@ -283,7 +283,7 @@ async def get_agent_thoughts(
 
 
 @router.get("/{agent_id}/memory", response_model=AgentMemoryState)
-async def get_agent_memory(agent_id: UUID) -> AgentMemoryState:
+async def get_agent_memory(agent_id: UUID, _=Depends(require_admin)) -> AgentMemoryState:
     """
     Get current memory state for an agent.
     """

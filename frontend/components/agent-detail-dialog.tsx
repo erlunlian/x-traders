@@ -143,6 +143,7 @@ export function AgentDetailDialog({
   const [loadingActivities, setLoadingActivities] = useState(false);
   const [agentMemory, setAgentMemory] = useState<AgentMemoryState | null>(null);
   const [refreshingActivities, setRefreshingActivities] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const activityEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -171,17 +172,25 @@ export function AgentDetailDialog({
       // If trader has an agent, fetch agent stats, activity, and memory
       if (data.agent) {
         try {
-          const [thoughts, memory] = await Promise.all([
-            apiClient.get<ThoughtListResponse>(
-              `/api/agents/${data.agent.agent_id}/thoughts?limit=50`
-            ),
-            apiClient.get<AgentMemoryState>(
-              `/api/agents/${data.agent.agent_id}/memory`
-            ),
-          ]);
+          const thoughts = await apiClient.get<ThoughtListResponse>(
+            `/api/agents/${data.agent.agent_id}/thoughts?limit=50`
+          );
           // Reverse thoughts to show oldest first (newest at bottom)
           setAgentThoughts(thoughts.thoughts.reverse());
-          setAgentMemory(memory);
+
+          if (isAdmin) {
+            try {
+              const memory = await apiClient.get<AgentMemoryState>(
+                `/api/agents/${data.agent.agent_id}/memory`
+              );
+              setAgentMemory(memory);
+            } catch (err) {
+              // If memory fetch fails (e.g., unauthorized), clear memory state
+              setAgentMemory(null);
+            }
+          } else {
+            setAgentMemory(null);
+          }
         } catch (err) {
           console.error("Error fetching agent data:", err);
         }
@@ -192,7 +201,7 @@ export function AgentDetailDialog({
     } finally {
       setLoading(false);
     }
-  }, [traderId]);
+  }, [traderId, isAdmin]);
 
   useEffect(() => {
     if (traderId && open) {
@@ -209,6 +218,38 @@ export function AgentDetailDialog({
       setActiveSection("overview");
     }
   }, [open]);
+
+  // Determine admin authentication from localStorage token
+  useEffect(() => {
+    if (!open) return;
+    try {
+      const token =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem("admin_token")
+          : null;
+      if (!token) {
+        setIsAdmin(false);
+        return;
+      }
+      const parts = token.split(".");
+      if (parts.length !== 3) {
+        setIsAdmin(false);
+        return;
+      }
+      const exp = parseInt(parts[1] || "0", 10);
+      const nowSec = Math.floor(Date.now() / 1000);
+      setIsAdmin(Number.isFinite(exp) && nowSec < exp);
+    } catch {
+      setIsAdmin(false);
+    }
+  }, [open]);
+
+  // Ensure we never show memory section if not admin
+  useEffect(() => {
+    if (!isAdmin && activeSection === "memory") {
+      setActiveSection("overview");
+    }
+  }, [isAdmin, activeSection]);
 
   // Auto-scroll to bottom only on initial load or refresh
   useEffect(() => {
@@ -1223,6 +1264,9 @@ export function AgentDetailDialog({
                     !trader?.agent
                   )
                     return null;
+
+                  // Hide memory section if not admin
+                  if (item.id === "memory" && !isAdmin) return null;
 
                   return (
                     <button
