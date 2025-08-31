@@ -12,7 +12,7 @@ const navigation = [
   { name: "Traders", href: "/traders", icon: Users },
 ];
 
-export function Sidebar() {
+export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
 
   return (
@@ -40,6 +40,7 @@ export function Sidebar() {
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
+              onClick={onNavigate}
             >
               <item.icon className="h-5 w-5" />
               {item.name}

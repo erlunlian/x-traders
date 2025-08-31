@@ -9,9 +9,11 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Menu, TrendingUp } from "lucide-react";
+import { useState } from "react";
 import { Sidebar } from "./sidebar";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
+  const [mobileOpen, setMobileOpen] = useState(false);
   return (
     <div className="flex h-screen">
       <div className="hidden md:block">
@@ -19,16 +21,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
       <div className="flex-1 flex flex-col">
         <div className="md:hidden flex h-16 items-center justify-between border-b px-4">
-          <Sheet>
+          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="w-9 h-9">
                 <Menu className="h-5 w-5" />
                 <span className="sr-only">Open navigation</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="p-0 w-64">
+            <SheetContent side="left" className="p-0 w-64" hideCloseButton>
               <SheetTitle className="sr-only">Navigation</SheetTitle>
-              <Sidebar />
+              <Sidebar onNavigate={() => setMobileOpen(false)} />
             </SheetContent>
           </Sheet>
           <div className="flex items-center gap-2">

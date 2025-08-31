@@ -1218,7 +1218,7 @@ export function AgentDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-7xl w-[100vw] sm:w-[90vw] h-[82vh] sm:h-[90vh] p-0 flex flex-col">
+      <DialogContent className="max-w-7xl w-[100vw] sm:w-[90vw] h-[82vh] sm:h-[90vh] p-0 flex flex-col overflow-hidden">
         <div className="flex flex-1 min-h-0">
           {/* Side Navigation (hidden on mobile) */}
           <div className="w-64 border-r bg-muted/10 flex-col hidden sm:flex">
@@ -1286,7 +1286,7 @@ export function AgentDetailDialog({
           </div>
 
           {/* Content Area */}
-          <div className="flex-1 min-w-0 flex flex-col pt-10 sm:pt-0">
+          <div className="flex-1 min-w-0 min-h-0 flex flex-col pt-10 sm:pt-0">
             {/* Mobile Section Selector */}
             <div className="sm:hidden p-3 border-b">
               <Select
