@@ -13,26 +13,12 @@ class Ticker(str, Enum):
 
     ELON_MUSK = "@elonmusk"
     SAM_ALTMAN = "@sama"
-    NAVAL = "@naval"
-    BARACK_OBAMA = "@barackobama"
-    CRISTIANO_RONALDO = "@cristiano"
     DONALD_TRUMP = "@realDonaldTrump"
-    BILL_GATES = "@billgates"
-    LEBRON_JAMES = "@kingjames"
-    ALEXANDER_WANG = "@alexander_wang"
     ANDREJ_KARPATHY = "@karpathy"
-    JEFF_DEAN = "@jeffdean"
     GREG_BROCKMAN = "@gdb"
     PAUL_GRAHAM = "@paulg"
-    MARC_ANDREESSEN = "@pmarca"
-    YANN_LECUN = "@ylecun"
-    BRIAN_ARMSTRONG = "@brian_armstrong"
     JOHN_COLLISON = "@collison"
-    SATYA_NADELLA = "@satyanadella"
-    LISASU = "@LisaSu"
-    MICHAEL_TRUELL = "@mntruell"
     DARIO_AMODEI = "@darioAmodei"
-    JOHN_SCHULMAN = "@johnschulman"
 
     @classmethod
     def get_all(cls) -> list[str]:
