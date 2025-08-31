@@ -20,7 +20,6 @@ from api.x_webhook import router as x_webhook_router
 from config import TICKERS
 from database import init_db
 from engine import OrderExpirationService, order_router
-from services.agents.agent_manager import agent_manager
 
 # Load environment variables
 load_dotenv()
@@ -44,19 +43,10 @@ async def lifespan(app: FastAPI):
     expiration_service = OrderExpirationService(order_router)
     expiration_task = asyncio.create_task(expiration_service.start())
 
-    # Start agent manager
-    await agent_manager.start()
-    agent_monitor_task = asyncio.create_task(agent_manager.monitor_agents())
-
-    print(f"Exchange ready with {len(TICKERS)} tickers and agent manager running")
-
     yield
 
     # Shutdown
     print("Shutting down X-Traders Exchange...")
-
-    # Stop agent manager
-    await agent_manager.stop()
 
     # Stop services
     await expiration_service.stop()
@@ -66,7 +56,6 @@ async def lifespan(app: FastAPI):
 
     # Cancel background tasks
     expiration_task.cancel()
-    agent_monitor_task.cancel()
 
     print("Exchange shutdown complete")
 

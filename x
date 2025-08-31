@@ -44,10 +44,10 @@ usage() {
     echo "Commands:"
     echo "  setup                 Set up the development environment"
     echo ""
-    echo "  start                 Start both backend and frontend servers"
+    echo "  start                 Start backend, frontend, and agent-runner"
     echo "  stop                  Stop all running servers"
     echo "  status                Check server status"
-    echo "  logs [backend|frontend] View server logs"
+    echo "  logs [backend|frontend|agent] View server logs"
     echo ""
     echo "  backend               Start the backend server (dev mode)"
     echo "  backend prod          Start the backend in production mode"
@@ -56,6 +56,12 @@ usage() {
     echo ""
     echo "  frontend              Start the frontend server (dev mode)"
     echo "  frontend build        Build frontend for production"
+    echo ""
+    echo "  agent-runner          Start the agent runner in foreground"
+    echo "  agent-runner start    Start the agent runner (daemon)"
+    echo "  agent-runner stop     Stop the agent runner"
+    echo "  agent-runner status   Check agent runner status"
+    echo "  agent-runner logs     Tail agent runner logs"
     echo ""
     echo "  db migrate [msg]      Generate a new database migration"
     echo "  db upgrade            Apply database migrations"
@@ -388,6 +394,62 @@ agents_cmd() {
     esac
 }
 
+# Agent runner controls
+agent_runner_cmd() {
+    case "$1" in
+        ""|run|foreground)
+            echo -e "${GREEN}Starting agent runner (foreground)...${NC}"
+            cd "$BACKEND_DIR"
+            activate_venv || exit 1
+            python -m services.agents.runner
+            ;;
+        start)
+            if pgrep -f "python -m services.agents.runner" > /dev/null; then
+                echo -e "${YELLOW}Agent runner is already running${NC}"
+                exit 0
+            fi
+            echo -e "${GREEN}Starting agent runner (daemon)...${NC}"
+            cd "$BACKEND_DIR"
+            activate_venv || exit 1
+            nohup python -m services.agents.runner > "$BACKEND_DIR/agent_runner.log" 2>&1 &
+            echo $! > "$BACKEND_DIR/agent_runner.pid"
+            echo -e "${GREEN}Agent runner started (PID: $(cat $BACKEND_DIR/agent_runner.pid))${NC}"
+            ;;
+        stop)
+            if [ -f "$BACKEND_DIR/agent_runner.pid" ]; then
+                PID=$(cat "$BACKEND_DIR/agent_runner.pid")
+                if kill -0 $PID 2>/dev/null; then
+                    kill $PID
+                    echo -e "${GREEN}Agent runner stopped${NC}"
+                fi
+                rm "$BACKEND_DIR/agent_runner.pid"
+            else
+                pkill -f "python -m services.agents.runner" 2>/dev/null && echo -e "${GREEN}Agent runner stopped${NC}" || echo -e "${YELLOW}Agent runner not running${NC}"
+            fi
+            ;;
+        status)
+            if pgrep -f "python -m services.agents.runner" > /dev/null; then
+                echo -e "Agent Runner: ${GREEN}● Running${NC}"
+            else
+                echo -e "Agent Runner: ${RED}● Stopped${NC}"
+            fi
+            ;;
+        logs)
+            if [ -f "$BACKEND_DIR/agent_runner.log" ]; then
+                echo -e "${BLUE}Agent Runner Logs:${NC}"
+                tail -f "$BACKEND_DIR/agent_runner.log"
+            else
+                echo -e "${YELLOW}No agent runner logs found${NC}"
+            fi
+            ;;
+        *)
+            echo -e "${RED}Unknown agent-runner subcommand: $1${NC}"
+            echo "Available: agent-runner [run|start|stop|status|logs]"
+            exit 1
+            ;;
+    esac
+}
+
 # Treasury commands
 treasury_cmd() {
     case "$1" in
@@ -421,6 +483,18 @@ start() {
         echo -e "${GREEN}Backend started (PID: $(cat $BACKEND_DIR/server.pid))${NC}"
     fi
     
+    # Start agent runner
+    if pgrep -f "python -m services.agents.runner" > /dev/null; then
+        echo -e "${YELLOW}Agent runner is already running${NC}"
+    else
+        echo "Starting agent runner..."
+        cd "$BACKEND_DIR"
+        activate_venv || exit 1
+        nohup python -m services.agents.runner > "$BACKEND_DIR/agent_runner.log" 2>&1 &
+        echo $! > "$BACKEND_DIR/agent_runner.pid"
+        echo -e "${GREEN}Agent runner started (PID: $(cat $BACKEND_DIR/agent_runner.pid))${NC}"
+    fi
+
     if [ -d "$FRONTEND_DIR" ]; then
         if pgrep -f "next dev" > /dev/null; then
             echo -e "${YELLOW}Frontend server is already running${NC}"
@@ -438,6 +512,7 @@ start() {
     echo "  Backend:  http://localhost:8000"
     echo "  API Docs: http://localhost:8000/docs"
     echo "  Frontend: http://localhost:3000"
+    echo "  Agent Runner: running (separate process)"
     echo ""
     echo "Run './x logs' to view server logs"
     echo "Run './x stop' to stop all servers"
@@ -460,6 +535,18 @@ stop() {
         pkill -f "uvicorn main:app" 2>/dev/null && echo -e "${GREEN}Backend server stopped${NC}"
     fi
     
+    # Stop agent runner
+    if [ -f "$BACKEND_DIR/agent_runner.pid" ]; then
+        PID=$(cat "$BACKEND_DIR/agent_runner.pid")
+        if kill -0 $PID 2>/dev/null; then
+            kill $PID
+            echo -e "${GREEN}Agent runner stopped${NC}"
+        fi
+        rm "$BACKEND_DIR/agent_runner.pid"
+    else
+        pkill -f "python -m services.agents.runner" 2>/dev/null && echo -e "${GREEN}Agent runner stopped${NC}"
+    fi
+
     # Stop frontend
     if [ -f "$FRONTEND_DIR/server.pid" ]; then
         PID=$(cat "$FRONTEND_DIR/server.pid")
@@ -494,6 +581,13 @@ status() {
     else
         echo -e "Frontend: ${RED}● Stopped${NC}"
     fi
+
+    # Check agent runner
+    if pgrep -f "python -m services.agents.runner" > /dev/null; then
+        echo -e "Agent:    ${GREEN}● Running${NC}"
+    else
+        echo -e "Agent:    ${RED}● Stopped${NC}"
+    fi
 }
 
 # View server logs
@@ -519,19 +613,29 @@ logs() {
             # Show both logs
             echo -e "${BLUE}Server Logs (Press Ctrl+C to exit):${NC}"
             echo ""
-            if [ -f "$BACKEND_DIR/server.log" ] && [ -f "$FRONTEND_DIR/server.log" ]; then
-                tail -f "$BACKEND_DIR/server.log" "$FRONTEND_DIR/server.log"
+            if [ -f "$BACKEND_DIR/server.log" ] && [ -f "$FRONTEND_DIR/server.log" ] && [ -f "$BACKEND_DIR/agent_runner.log" ]; then
+                tail -f "$BACKEND_DIR/server.log" "$FRONTEND_DIR/server.log" "$BACKEND_DIR/agent_runner.log"
             elif [ -f "$BACKEND_DIR/server.log" ]; then
                 tail -f "$BACKEND_DIR/server.log"
             elif [ -f "$FRONTEND_DIR/server.log" ]; then
                 tail -f "$FRONTEND_DIR/server.log"
+            elif [ -f "$BACKEND_DIR/agent_runner.log" ]; then
+                tail -f "$BACKEND_DIR/agent_runner.log"
             else
                 echo -e "${YELLOW}No server logs found${NC}"
             fi
             ;;
+        agent)
+            if [ -f "$BACKEND_DIR/agent_runner.log" ]; then
+                echo -e "${BLUE}Agent Runner Logs:${NC}"
+                tail -f "$BACKEND_DIR/agent_runner.log"
+            else
+                echo -e "${YELLOW}No agent runner logs found${NC}"
+            fi
+            ;;
         *)
             echo -e "${RED}Unknown log type: $1${NC}"
-            echo "Usage: ./x logs [backend|frontend]"
+            echo "Usage: ./x logs [backend|frontend|agent]"
             exit 1
             ;;
     esac
@@ -609,6 +713,9 @@ case "$1" in
         ;;
     frontend)
         frontend_cmd "$2"
+        ;;
+    agent-runner)
+        agent_runner_cmd "$2"
         ;;
     db)
         db_cmd "$2" "$3"
