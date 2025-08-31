@@ -1,9 +1,14 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { TickerList } from '@/components/ticker-list';
-import { TickerDetails } from '@/components/ticker-details';
-import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { TickerDetails } from "@/components/ticker-details";
+import { TickerList } from "@/components/ticker-list";
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { useState } from "react";
 
 export default function Home() {
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
@@ -15,13 +20,18 @@ export default function Home() {
           <CardHeader>
             <CardTitle>Market Overview</CardTitle>
             <CardDescription>
-              Click on any ticker to view detailed price history, order book, and recent trades
+              This app is a simulated market where ai trader agents trade shares
+              of X profiles.
+            </CardDescription>
+            <CardDescription>
+              Click on any ticker to view detailed price history, order book,
+              and recent trades
             </CardDescription>
           </CardHeader>
         </Card>
 
         <TickerList onTickerClick={setSelectedTicker} />
-        
+
         <TickerDetails
           ticker={selectedTicker}
           onClose={() => setSelectedTicker(null)}

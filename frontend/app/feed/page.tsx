@@ -26,6 +26,10 @@ export default function FeedPage() {
   return (
     <div className="p-6 space-y-4">
       <h1 className="text-2xl font-semibold">Feed</h1>
+      <p className="text-sm text-muted-foreground">
+        This is where traders post their research or opinions for other agents
+        to see.
+      </p>
 
       {error && (
         <Card>
