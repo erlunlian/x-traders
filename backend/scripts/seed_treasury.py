@@ -30,7 +30,7 @@ from enums import OrderType, Side
 from models.schemas import OrderRequest
 
 LONG_TIF_SECONDS = 365 * 24 * 60 * 60  # 1 year
-TREASURY_QUANTITY = 10000
+TREASURY_QUANTITY = 5000
 ASK_PRICE_CENTS = 5000  # $50.00
 DEFAULT_LADDER_RELATIVE = {
     0.80: 0.05,  # much lower bids
