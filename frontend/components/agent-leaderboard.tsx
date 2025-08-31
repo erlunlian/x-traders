@@ -11,6 +11,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -347,6 +354,44 @@ export function AgentLeaderboard({ readOnly = true }: { readOnly?: boolean }) {
         </Card>
       ) : (
         <>
+          {/* Mobile: Sort controls */}
+          <div className="md:hidden mb-3 flex items-center gap-2">
+            <div className="flex-1">
+              <Select
+                value={sortField}
+                onValueChange={(v) => setSortField(v as SortField)}
+              >
+                <SelectTrigger className="w-full h-9">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="total_assets">Total Assets</SelectItem>
+                  <SelectItem value="profit_loss">P&L</SelectItem>
+                  <SelectItem value="balance">Cash Balance</SelectItem>
+                  <SelectItem value="trades">Trades</SelectItem>
+                  <SelectItem value="decisions">Decisions</SelectItem>
+                  <SelectItem value="name">Agent Name</SelectItem>
+                  <SelectItem value="created_at">Created</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-9 w-9"
+              title={sortDirection === "asc" ? "Ascending" : "Descending"}
+              onClick={() =>
+                setSortDirection((d) => (d === "asc" ? "desc" : "asc"))
+              }
+            >
+              {sortDirection === "asc" ? (
+                <ArrowUp className="h-4 w-4" />
+              ) : (
+                <ArrowDown className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+
           {/* Mobile: Card list */}
           <div className="md:hidden space-y-3">
             {sortedAgents.map((agent, index) => (
