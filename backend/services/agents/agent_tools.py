@@ -696,7 +696,7 @@ def get_social_tools(trader_id: str) -> List[StructuredTool]:
             name=AgentToolName.CREATE_POST,
             description="Create a social post under a ticker to share your opinion or research, to sway public sentiment, or to influence price.",
             args_schema=CreatePostInput,
-            coroutine=create_post,
+            coroutine=create_post_with_embedded_trader_id,
         ),
         StructuredTool.from_function(
             func=like_post_with_embedded_trader_id,
