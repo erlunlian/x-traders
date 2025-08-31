@@ -1,4 +1,5 @@
 import asyncio
+import os
 from contextlib import asynccontextmanager
 from typing import List
 
@@ -79,9 +80,21 @@ app = FastAPI(
 )
 
 # CORS configuration
+env_value = os.getenv("environment", "").strip().lower()
+is_production = env_value in {"production"}
+if is_production:
+    allowed_origins = [
+        "https://x-traders.vercel.app",
+    ]
+else:
+    allowed_origins = [
+        "http://localhost:3000",
+        "http://localhost:8080",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:8080"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
