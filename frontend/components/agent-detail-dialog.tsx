@@ -1218,10 +1218,10 @@ export function AgentDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-7xl h-[90vh] p-0 flex flex-col">
+      <DialogContent className="max-w-7xl w-[100vw] sm:w-[90vw] h-[82vh] sm:h-[90vh] p-0 flex flex-col">
         <div className="flex flex-1 min-h-0">
-          {/* Side Navigation */}
-          <div className="w-64 border-r bg-muted/10 flex flex-col">
+          {/* Side Navigation (hidden on mobile) */}
+          <div className="w-64 border-r bg-muted/10 flex-col hidden sm:flex">
             <DialogHeader className="p-6 border-b">
               <DialogTitle className="flex items-center gap-2">
                 {trader?.agent ? (
@@ -1258,14 +1258,11 @@ export function AgentDetailDialog({
             <nav className="flex-1 p-3">
               <div className="space-y-1">
                 {navigationItems.map((item) => {
-                  // Hide activity and memory sections if no agent
                   if (
                     (item.id === "activity" || item.id === "memory") &&
                     !trader?.agent
                   )
                     return null;
-
-                  // Hide memory section if not admin
                   if (item.id === "memory" && !isAdmin) return null;
 
                   return (
@@ -1289,7 +1286,35 @@ export function AgentDetailDialog({
           </div>
 
           {/* Content Area */}
-          <div className="flex-1 min-w-0 flex flex-col">
+          <div className="flex-1 min-w-0 flex flex-col pt-10 sm:pt-0">
+            {/* Mobile Section Selector */}
+            <div className="sm:hidden p-3 border-b">
+              <Select
+                value={activeSection}
+                onValueChange={(v) => setActiveSection(v as SectionType)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select section" />
+                </SelectTrigger>
+                <SelectContent>
+                  {navigationItems
+                    .filter((item) => {
+                      if (
+                        (item.id === "activity" || item.id === "memory") &&
+                        !trader?.agent
+                      )
+                        return false;
+                      if (item.id === "memory" && !isAdmin) return false;
+                      return true;
+                    })
+                    .map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
             {loading && (
               <div className="p-6 space-y-4">
                 <Skeleton className="h-32 w-full" />

@@ -81,7 +81,7 @@ export function PriceChart({ ticker }: PriceChartProps) {
       <CardHeader className="flex-shrink-0">
         <div className="flex items-center justify-between">
           <CardTitle>{ticker} Price History</CardTitle>
-          <div className="flex gap-1">
+          <div className="flex gap-1 sm:gap-2 overflow-x-auto">
             {timeRanges.map((range) => (
               <Button
                 key={range.value}
@@ -96,7 +96,7 @@ export function PriceChart({ ticker }: PriceChartProps) {
         </div>
       </CardHeader>
       <CardContent className="flex-1">
-        <ResponsiveContainer width="100%" height={400}>
+        <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData}>
             <defs>
               <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
@@ -127,6 +127,7 @@ export function PriceChart({ ticker }: PriceChartProps) {
               type="monotone"
               dataKey="price"
               stroke="#8884d8"
+              strokeWidth={2}
               fillOpacity={1}
               fill="url(#colorPrice)"
             />
