@@ -20,7 +20,7 @@ from api.x_webhook import router as x_webhook_router
 from config import TICKERS
 from database import init_db
 from engine import OrderExpirationService, order_router
-from services.agents import agent_manager
+from services.agents.agent_manager import agent_manager
 
 # Load environment variables
 load_dotenv()
