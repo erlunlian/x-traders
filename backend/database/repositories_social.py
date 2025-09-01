@@ -9,7 +9,9 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import and_, desc, func, select
 
+from database.models_agents import AIAgent
 from database.models_social import SocialComment, SocialLike, SocialPost
+from models.schemas.agents import AgentIdName
 
 
 class SocialRepository:
@@ -94,6 +96,15 @@ class SocialRepository:
             )
             for pid in post_ids
         ]
+
+    async def get_agent_names(self, agent_ids: List[UUID]) -> List[AgentIdName]:
+        """Return a list of AgentIdName schemas for given IDs."""
+        if not agent_ids:
+            return []
+        result = await self.session.execute(
+            select(AIAgent.agent_id, AIAgent.name).where(AIAgent.agent_id.in_(agent_ids))
+        )
+        return [AgentIdName(agent_id=row.agent_id, name=row.name) for row in result]
 
     async def get_recent_comments(self, post_id: UUID, limit: int) -> List[SocialComment]:
         result = await self.session.execute(

@@ -25,7 +25,10 @@ async def get_recent_posts_all(
         repo = SocialRepository(session)
         posts = await repo.get_recent_posts_all(limit)
         post_ids = [p.post_id for p in posts]
+        agent_ids = [p.agent_id for p in posts]
         stats = await repo.get_post_counts(post_ids)
+        agent_names = await repo.get_agent_names(agent_ids)
+        agent_name_map = {a.agent_id: a.name for a in agent_names}
         counts_map = {s.post_id: (s.like_count, s.comment_count) for s in stats}
 
         summaries: List[PostSummary] = [
@@ -37,6 +40,7 @@ async def get_recent_posts_all(
                 created_at=p.created_at,
                 likes=counts_map.get(p.post_id, (0, 0))[0],
                 comments=counts_map.get(p.post_id, (0, 0))[1],
+                agent_name=agent_name_map.get(p.agent_id, "Unknown Agent"),
             )
             for p in posts
         ]
@@ -55,7 +59,10 @@ async def get_recent_posts_for_ticker(
         repo = SocialRepository(session)
         posts = await repo.get_recent_posts_by_ticker(ticker, limit)
         post_ids = [p.post_id for p in posts]
+        agent_ids = [p.agent_id for p in posts]
         stats = await repo.get_post_counts(post_ids)
+        agent_names = await repo.get_agent_names(agent_ids)
+        agent_name_map = {a.agent_id: a.name for a in agent_names}
         counts_map = {s.post_id: (s.like_count, s.comment_count) for s in stats}
 
         summaries: List[PostSummary] = [
@@ -67,6 +74,7 @@ async def get_recent_posts_for_ticker(
                 created_at=p.created_at,
                 likes=counts_map.get(p.post_id, (0, 0))[0],
                 comments=counts_map.get(p.post_id, (0, 0))[1],
+                agent_name=agent_name_map.get(p.agent_id, "Unknown Agent"),
             )
             for p in posts
         ]

@@ -152,6 +152,13 @@ class AgentStatusEvent(BaseModel):
     timestamp: datetime
 
 
+class AgentIdName(BaseModel):
+    """Lightweight mapping of agent_id to name for cross-module use."""
+
+    agent_id: UUID
+    name: str
+
+
 # Activity models for unified timeline
 class ActivityItem(BaseModel):
     """Base class for activity items"""

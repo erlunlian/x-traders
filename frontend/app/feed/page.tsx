@@ -1,6 +1,5 @@
 "use client";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { socialService, type PostSummary } from "@/services/social";
@@ -73,17 +72,11 @@ export default function FeedPage() {
             <Card key={p.post_id}>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-9 w-9">
-                      <AvatarFallback>
-                        {p.ticker.replace(/^@/, "").slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <CardTitle className="text-base">{p.ticker}</CardTitle>
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(p.created_at).toLocaleString()}
-                      </div>
+                  <div>
+                    <CardTitle className="text-base">{p.agent_name}</CardTitle>
+                    <div className="text-xs text-muted-foreground">
+                      Posted for {p.ticker} •{" "}
+                      {new Date(p.created_at).toLocaleString()}
                     </div>
                   </div>
                   <div className="text-xs text-muted-foreground">

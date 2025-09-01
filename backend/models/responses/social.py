@@ -9,6 +9,7 @@ class PostSummary(BaseModel):
     post_id: UUID
     ticker: str
     agent_id: UUID
+    agent_name: str
     content: str
     created_at: datetime
     likes: int

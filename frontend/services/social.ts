@@ -4,6 +4,7 @@ export type PostSummary = {
   post_id: string;
   ticker: string;
   agent_id: string;
+  agent_name: string;
   content: string;
   created_at: string;
   likes: number;
