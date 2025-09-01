@@ -8,6 +8,7 @@ from typing import List, Optional
 
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from sqlmodel import asc, desc, select
 
 from database.models import XTweet, XUser
@@ -336,8 +337,8 @@ class XDataRepository:
         Returns:
             List of tweets with author data loaded
         """
-        # Use join to eagerly load the author data
-        query = select(XTweet).join(XUser, isouter=True)
+        # Eagerly load the author relationship to avoid async lazy-loads
+        query = select(XTweet).options(selectinload(XTweet.author))
 
         if after_timestamp:
             query = query.where(XTweet.fetched_at > after_timestamp)
@@ -347,8 +348,6 @@ class XDataRepository:
 
         result = await self.session.execute(query)
         tweets = list(result.scalars().all())
-
-        # The join ensures author data is loaded
         return tweets
 
     async def get_tweets_for_agent(
