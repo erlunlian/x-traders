@@ -175,16 +175,40 @@ Cycle: {state.cycle_count}
             state.messages.append(HumanMessage(content=context))
 
     async def compact_if_needed(self, state: AgentState) -> None:
-        """Compact memory if above threshold; append errors to state context."""
+        """Compact memory if above threshold; also prune messages and insert a summary notice."""
         try:
             if await self.memory_manager.should_compress():
                 await self.memory_manager.compress_memory()
+
+                # Build a concise memory summary for continuity after pruning
+                try:
+                    summary = await self.memory_manager.get_formatted_memory_for_prompt()
+                except Exception:
+                    summary = "No memory available."
+
+                # Keep the initial system prompt; prune all other messages and insert a notice
+                system_msg = None
+                for msg in state.messages:
+                    if isinstance(msg, SystemMessage):
+                        system_msg = msg
+                        break
+                if system_msg is None:
+                    system_prompt = build_system_prompt(self.agent.personality_prompt)
+                    system_msg = SystemMessage(content=system_prompt)
+
+                notice = (
+                    "Context notice: Previous conversation history was pruned to preserve the "
+                    "context window and memory. Here's a summary to retain continuity:\n\n"
+                    + summary
+                )
+                state.messages = [system_msg, HumanMessage(content=notice)]
+
                 # Record a compaction thought so it shows in activity
                 thought_info = await create_thought_safe(
                     agent_id=self.agent.agent_id,
                     step_number=state.cycle_count,
                     thought_type=AgentThoughtType.COMPACT,
-                    content="Compressed working memory due to token threshold.",
+                    content="Compressed working memory and pruned conversation history to preserve context.",
                     tool_name=None,
                     tool_args=None,
                     tool_result=None,

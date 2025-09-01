@@ -16,13 +16,14 @@ from services.agents.utils import create_llm
 
 
 class MemoryManager:
-    """Manages agent memory with compression at 80% threshold"""
+    """Manages agent memory with compression at a fixed token threshold"""
 
     def __init__(self, agent: Agent):
         self.agent_id = agent.agent_id
         self.llm_model = agent.llm_model
         self.model_config = ModelRegistry.get(self.llm_model)
-        self.compression_threshold = self.model_config.max_context_tokens
+        # Use a fixed token threshold to trigger compaction much earlier
+        self.compression_threshold = 10_000
         self.llm = create_llm(self.llm_model, agent.temperature)
         self.encoder = self._get_encoder()
 
