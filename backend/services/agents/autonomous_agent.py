@@ -252,8 +252,11 @@ Cycle: {state.cycle_count}
             # Persist key reasoning to working memory for continuity
             await self.memory_manager.add_to_memory([(AgentThoughtType.THINKING, response.content)])
 
-        # Compact memory after thinking if needed
-        await self.compact_if_needed(state)
+        # Compact memory after thinking if needed, but ONLY if there are no pending tool calls.
+        # If we compact while tool calls are pending, we risk pruning the assistant
+        # message that contains tool_calls, which would invalidate subsequent ToolMessages.
+        if not state.pending_tool_calls:
+            await self.compact_if_needed(state)
 
         return state
 
