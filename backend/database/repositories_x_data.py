@@ -324,6 +324,15 @@ class XDataRepository:
         result = await self.session.execute(select(XTweet).order_by(desc(XTweet.tweet_created_at)))
         return list(result.scalars().all())
 
+    async def get_recent_tweets(self, limit: int = 20) -> List[XTweet]:
+        """Get most recent tweets limited in SQL to avoid loading everything."""
+        if limit <= 0:
+            raise ValueError("Limit must be greater than 0")
+        result = await self.session.execute(
+            select(XTweet).order_by(desc(XTweet.tweet_created_at)).limit(limit)
+        )
+        return list(result.scalars().all())
+
     async def get_tweets_after_timestamp(
         self, after_timestamp: Optional[datetime], limit: int = 100
     ) -> List[XTweet]:

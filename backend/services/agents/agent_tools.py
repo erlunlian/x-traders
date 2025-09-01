@@ -641,10 +641,8 @@ async def get_x_recent_tweets(**kwargs) -> RecentTweetsResult:
     try:
         async with get_db_transaction() as session:
             repo = XDataRepository(session)
-            tweets = await repo.get_all_tweets()
-
-            # Apply limit
-            tweets = tweets[: input_data.limit] if input_data.limit else tweets
+            # Push limit into SQL to avoid loading all tweets into memory
+            tweets = await repo.get_recent_tweets(input_data.limit)
 
             tweet_data = [
                 TweetData(
