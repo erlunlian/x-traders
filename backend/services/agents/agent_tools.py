@@ -178,16 +178,16 @@ class CreatePostInput(BaseModel):
     content: str = Field(description="Post content")
 
 
-class CreatePostInputWithTraderId(CreatePostInput):
-    trader_id: str = Field(description="The unique identifier of the trader")
+class CreatePostInputWithAgentId(CreatePostInput):
+    agent_id: str = Field(description="The unique identifier of the agent")
 
 
 class LikePostInput(BaseModel):
     post_id: str = Field(description="Post UUID to like")
 
 
-class LikePostInputWithTraderId(LikePostInput):
-    trader_id: str = Field(description="The unique identifier of the trader")
+class LikePostInputWithAgentId(LikePostInput):
+    agent_id: str = Field(description="The unique identifier of the agent")
 
 
 class AddCommentInput(BaseModel):
@@ -195,8 +195,8 @@ class AddCommentInput(BaseModel):
     content: str = Field(description="Comment content")
 
 
-class AddCommentInputWithTraderId(AddCommentInput):
-    trader_id: str = Field(description="The unique identifier of the trader")
+class AddCommentInputWithAgentId(AddCommentInput):
+    agent_id: str = Field(description="The unique identifier of the agent")
 
 
 class RecentTickerPostsInput(BaseModel):
@@ -211,36 +211,36 @@ class RecentPostCommentsInput(BaseModel):
 
 # Social feed tools
 async def create_post(**kwargs) -> dict:
-    input_data = CreatePostInputWithTraderId(**kwargs)
+    input_data = CreatePostInputWithAgentId(**kwargs)
     from uuid import UUID
 
     async with get_db_transaction() as session:
         repo = SocialRepository(session)
-        post = await repo.create_post(agent_id=UUID(input_data.trader_id), ticker=input_data.ticker, content=input_data.content)  # type: ignore[name-defined]
+        post = await repo.create_post(agent_id=UUID(input_data.agent_id), ticker=input_data.ticker, content=input_data.content)  # type: ignore[name-defined]
         return {"success": True, "post_id": str(post.post_id)}
 
 
 async def like_post(**kwargs) -> dict:
-    input_data = LikePostInputWithTraderId(**kwargs)
+    input_data = LikePostInputWithAgentId(**kwargs)
     from uuid import UUID
 
     async with get_db_transaction() as session:
         repo = SocialRepository(session)
         await repo.like_post(
-            agent_id=UUID(input_data.trader_id),
+            agent_id=UUID(input_data.agent_id),
             post_id=UUID(input_data.post_id),
         )
         return {"success": True}
 
 
 async def add_comment(**kwargs) -> dict:
-    input_data = AddCommentInputWithTraderId(**kwargs)
+    input_data = AddCommentInputWithAgentId(**kwargs)
     from uuid import UUID
 
     async with get_db_transaction() as session:
         repo = SocialRepository(session)
         comment = await repo.add_comment(
-            agent_id=UUID(input_data.trader_id),
+            agent_id=UUID(input_data.agent_id),
             post_id=UUID(input_data.post_id),
             content=input_data.content,
         )
@@ -676,41 +676,41 @@ async def rest(**kwargs) -> dict:
     return {"success": True, "rested": True, "duration_minutes": input_data.duration_minutes}
 
 
-def get_social_tools(trader_id: str) -> List[StructuredTool]:
+def get_social_tools(agent_id: str) -> List[StructuredTool]:
     """
     Get all social tools for LangGraph agents.
     """
 
-    async def create_post_with_embedded_trader_id(**kwargs) -> dict:
-        return await create_post(trader_id=trader_id, **kwargs)
+    async def create_post_with_embedded_agent_id(**kwargs) -> dict:
+        return await create_post(agent_id=agent_id, **kwargs)
 
-    async def like_post_with_embedded_trader_id(**kwargs) -> dict:
-        return await like_post(trader_id=trader_id, **kwargs)
+    async def like_post_with_embedded_agent_id(**kwargs) -> dict:
+        return await like_post(agent_id=agent_id, **kwargs)
 
-    async def add_comment_with_embedded_trader_id(**kwargs) -> dict:
-        return await add_comment(trader_id=trader_id, **kwargs)
+    async def add_comment_with_embedded_agent_id(**kwargs) -> dict:
+        return await add_comment(agent_id=agent_id, **kwargs)
 
     return [
         StructuredTool.from_function(
-            func=create_post_with_embedded_trader_id,
+            func=create_post_with_embedded_agent_id,
             name=AgentToolName.CREATE_POST,
             description="Create a social post under a ticker to share your opinion or research, to sway public sentiment, or to influence price.",
             args_schema=CreatePostInput,
-            coroutine=create_post_with_embedded_trader_id,
+            coroutine=create_post_with_embedded_agent_id,
         ),
         StructuredTool.from_function(
-            func=like_post_with_embedded_trader_id,
+            func=like_post_with_embedded_agent_id,
             name=AgentToolName.LIKE_POST,
             description="Like a social post to show your support or agreement.",
             args_schema=LikePostInput,
-            coroutine=like_post_with_embedded_trader_id,
+            coroutine=like_post_with_embedded_agent_id,
         ),
         StructuredTool.from_function(
-            func=add_comment_with_embedded_trader_id,
+            func=add_comment_with_embedded_agent_id,
             name=AgentToolName.ADD_COMMENT,
             description="Add a comment to a social post to share your opinion or research.",
             args_schema=AddCommentInput,
-            coroutine=add_comment_with_embedded_trader_id,
+            coroutine=add_comment_with_embedded_agent_id,
         ),
         StructuredTool.from_function(
             func=get_recent_ticker_posts,

@@ -71,7 +71,7 @@ class AutonomousAgent:
         trading_tools = get_trading_tools(trader_id=self.trader_id)
         x_data_tools = get_x_data_tools()
         utility_tools = get_utility_tools()
-        social_tools = get_social_tools(trader_id=self.trader_id)
+        social_tools = get_social_tools(agent_id=str(self.agent.agent_id))
 
         return trading_tools + x_data_tools + utility_tools + social_tools
 

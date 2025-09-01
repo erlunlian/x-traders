@@ -211,6 +211,7 @@ class AgentManager:
 
             except Exception as e:
                 print(f"Agent monitor error: {e}")
+                traceback.print_exc()
                 self._record_monitor_error(e)
                 await asyncio.sleep(10)
 
