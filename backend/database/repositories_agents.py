@@ -418,3 +418,43 @@ class AgentRepository:
             deleted_count += 1
 
         return deleted_count
+
+    async def prune_agent_thoughts_without_commit(self, keep_last_n: int = 500) -> int:
+        """
+        Prune thoughts for each agent, keeping only the most recent N per agent.
+
+        Returns total number of deleted thoughts. Caller manages transaction.
+        """
+        if keep_last_n < 0:
+            keep_last_n = 0
+
+        # Get all agent ids that have thoughts
+        result_agents = await self.session.execute(
+            select(AgentThought.agent_id).group_by(AgentThought.agent_id)
+        )
+        agent_ids = list(result_agents.scalars().all())
+
+        total_deleted = 0
+        if not agent_ids:
+            return 0
+
+        # For each agent, fetch thoughts ordered by created_at desc and delete beyond N
+        for agent_id in agent_ids:
+            thoughts_result = await self.session.execute(
+                select(AgentThought.thought_id)
+                .where(AgentThought.agent_id == agent_id)
+                .order_by(desc(AgentThought.created_at))
+                .offset(keep_last_n)
+            )
+            thought_ids_to_delete = list(thoughts_result.scalars().all())
+            if not thought_ids_to_delete:
+                continue
+
+            del_stmt = delete(AgentThought).where(
+                AgentThought.thought_id.in_(thought_ids_to_delete)
+            )  # type: ignore[arg-type]
+            result = await self.session.execute(del_stmt)
+            await self.session.flush()
+            total_deleted += int(result.rowcount or len(thought_ids_to_delete))
+
+        return total_deleted

@@ -21,6 +21,7 @@ from config import TICKERS
 from database import init_db
 from engine import OrderExpirationService, order_router
 from services.agents.agent_manager import agent_manager
+from services.maintenance import DailyMaintenanceService
 
 # Load environment variables
 load_dotenv()
@@ -48,6 +49,10 @@ async def lifespan(app: FastAPI):
     await agent_manager.start()
     agent_monitor_task = asyncio.create_task(agent_manager.monitor_agents())
 
+    # Start daily maintenance service at 03:00 UTC
+    maintenance_service = DailyMaintenanceService()
+    await maintenance_service.start()
+
     yield
 
     # Shutdown
@@ -58,6 +63,7 @@ async def lifespan(app: FastAPI):
 
     # Stop services
     await expiration_service.stop()
+    await maintenance_service.stop()
 
     # Shutdown order router
     await order_router.shutdown()

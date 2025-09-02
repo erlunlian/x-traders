@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import List, Optional
 
+from sqlalchemy import delete
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -210,6 +211,30 @@ class XDataRepository:
             .limit(limit)
         )
         return list(result.scalars().all())
+
+    async def prune_tweets_without_commit(self, keep_last_n: int = 500) -> int:
+        """
+        Delete older tweets keeping only the most recent N across all users.
+
+        Returns number of deleted rows. Caller manages transaction boundaries.
+        """
+        if keep_last_n < 0:
+            keep_last_n = 0
+
+        # Get tweet IDs to delete (all beyond the most recent N)
+        ids_result = await self.session.execute(
+            select(XTweet.tweet_id).order_by(desc(XTweet.tweet_created_at)).offset(keep_last_n)
+        )
+        tweet_ids_to_delete = list(ids_result.scalars().all())
+
+        if not tweet_ids_to_delete:
+            return 0
+
+        del_stmt = delete(XTweet).where(XTweet.tweet_id.in_(tweet_ids_to_delete))  # type: ignore[arg-type]
+        result = await self.session.execute(del_stmt)
+        await self.session.flush()
+        # rowcount might be None on some drivers; fall back to computed len
+        return int(result.rowcount or len(tweet_ids_to_delete))
 
     async def get_tweets_by_ids(self, tweet_ids: List[str]) -> List[XTweet]:
         """
