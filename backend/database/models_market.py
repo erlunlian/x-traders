@@ -1,12 +1,14 @@
 """
 Market data SQLModel database models
 """
+
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict
 
 from sqlalchemy import Boolean, Column, DateTime, String, func
-from sqlalchemy.dialects.postgresql import ENUM, JSONB, UUID as PGUUID
+from sqlalchemy.dialects.postgresql import ENUM, JSONB
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlmodel import Field, SQLModel
 
 from enums import MarketDataEventType
@@ -14,6 +16,7 @@ from enums import MarketDataEventType
 
 class MarketDataOutbox(SQLModel, table=True):
     """Transactional outbox pattern for reliable event publishing"""
+
     __tablename__ = "market_data_outbox"
 
     event_id: uuid.UUID = Field(

@@ -11,7 +11,7 @@ from sqlmodel import Field, SQLModel
 class SystemSetting(SQLModel, table=True):
     __tablename__ = "system_settings"
 
-    key: str = Field(primary_key=True, sa_column=Column(String(100), primary_key=True))
+    key: str = Field(sa_column=Column(String(100), primary_key=True))
     # Store either ISO timestamps or JSON config as needed
     value: str = Field(sa_column=Column(String(500)))
     created_at: datetime = Field(
