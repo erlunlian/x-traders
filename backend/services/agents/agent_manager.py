@@ -5,12 +5,12 @@ Agent manager service that orchestrates all AI agents
 import asyncio
 import traceback
 from collections import deque
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Deque, Dict, List
 from uuid import UUID
 
-from database import async_session
-from database.repositories import AgentRepository
+from database import async_session, get_db_transaction
+from database.repositories import AgentRepository, SettingsRepository
 from models.schemas.agents import Agent
 from services.agents.autonomous_agent import AutonomousAgent
 from services.agents.db_utils import get_active_agents_safe, get_agent_or_none_safe
@@ -26,21 +26,15 @@ class AgentManager:
         # In-memory error buffers
         self.agent_errors: Dict[UUID, Deque[Dict[str, Any]]] = {}
         self.monitor_errors: Deque[Dict[str, Any]] = deque(maxlen=200)
+        # Global pause state (e.g., due to LLM 429)
+        self.globally_paused: bool = False
+        self.global_pause_until: datetime | None = None
+        self.global_pause_reason: str | None = None
+        self._resume_task: asyncio.Task | None = None
 
     async def start(self) -> None:
         """Start the agent manager and all active agents"""
         self.running = True
-
-        # Load all active agents from database
-        active_agents = await get_active_agents_safe()
-
-        print(f"Starting {len(active_agents)} active agents...")
-
-        # Start each agent
-        for agent in active_agents:
-            await self.start_agent(agent)
-
-        print(f"All agents started. Managing {len(self.agents)} agents.")
 
     def _record_agent_error(self, agent_id: UUID, error: BaseException) -> None:
         """Record an agent crash/error into a bounded deque."""
@@ -98,10 +92,100 @@ class AgentManager:
 
         print("All agents stopped.")
 
+    async def pause_all_for(self, seconds: int, reason: str) -> None:
+        """Pause all agents for the specified number of seconds with a reason."""
+        # Set state
+        self.running = True  # Ensure monitor loop can run even while paused
+        self.globally_paused = True
+        self.global_pause_until = datetime.now(timezone.utc) + timedelta(seconds=seconds)
+        self.global_pause_reason = reason
+
+        # Stop any running agents immediately
+        for agent_id in list(self.agents.keys()):
+            await self.stop_agent(agent_id)
+
+        # Schedule automatic resume
+        if self._resume_task and not self._resume_task.done():
+            self._resume_task.cancel()
+        self._resume_task = asyncio.create_task(self._auto_resume_when_ready())
+
+    async def _auto_resume_when_ready(self) -> None:
+        try:
+            while self.globally_paused:
+                now = datetime.now(timezone.utc)
+                if self.global_pause_until and now >= self.global_pause_until:
+                    await self.resume_all()
+                    break
+                await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            pass
+
+    async def resume_all(self) -> None:
+        """Resume all active agents if they are globally paused."""
+        self.globally_paused = False
+        self.global_pause_until = None
+        self.global_pause_reason = None
+
+        # Clear persisted pause flag
+        try:
+
+            async with get_db_transaction() as session:
+                repo = SettingsRepository(session)
+                await repo.delete_value_without_commit("agent_pause_until")
+        except Exception:
+            pass
+
+        # Load all agents that are marked active in DB and start them
+        active_agents = await get_active_agents_safe()
+        for agent in active_agents:
+            await self.start_agent(agent)
+
+    async def _check_pause_from_settings(self) -> None:
+        """Check persisted pause_until and apply pause/resume/start as needed."""
+        try:
+            async with async_session() as session:
+                settings_repo = SettingsRepository(session)
+                pause_until_str = await settings_repo.get_value("agent_pause_until")
+
+            if pause_until_str:
+                pause_until_dt = datetime.fromisoformat(pause_until_str)
+                if pause_until_dt.tzinfo is None:
+                    pause_until_dt = pause_until_dt.replace(tzinfo=timezone.utc)
+                now = datetime.now(timezone.utc)
+                if now < pause_until_dt:
+                    if not self.globally_paused:
+                        seconds = max(1, int((pause_until_dt - now).total_seconds()))
+                        await self.pause_all_for(seconds, "Rate limited by LLM provider")
+                else:
+                    if self.globally_paused:
+                        await self.resume_all()
+                    else:
+                        active_agents = await get_active_agents_safe()
+                        for agent in active_agents:
+                            if agent.agent_id not in self.agents:
+                                await self.start_agent(agent)
+                    try:
+                        async with get_db_transaction() as session:
+                            repo = SettingsRepository(session)
+                            await repo.delete_value_without_commit("agent_pause_until")
+                    except Exception:
+                        pass
+            else:
+                if not self.globally_paused and not self.agents:
+                    active_agents = await get_active_agents_safe()
+                    for agent in active_agents:
+                        await self.start_agent(agent)
+        except Exception:
+            pass
+
     async def start_agent(self, agent: Agent) -> None:
         """Start a single agent"""
         if agent.agent_id in self.agents:
             print(f"Agent {agent.name} already running")
+            return
+
+        if self.globally_paused:
+            # Do not start new agents while paused
             return
 
         # Create autonomous agent
@@ -183,6 +267,9 @@ class AgentManager:
         """Monitor agent health and restart if needed"""
         while self.running:
             try:
+                # Apply pause/resume/start based on persisted settings
+                await self._check_pause_from_settings()
+
                 # Check each running task
                 for agent_id, task in list(self.running_tasks.items()):
                     if task.done():

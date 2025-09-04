@@ -67,6 +67,9 @@ export function AgentLeaderboard({ readOnly = true }: { readOnly?: boolean }) {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
+  const [globallyPaused, setGloballyPaused] = useState<boolean>(false);
+  const [pauseReason, setPauseReason] = useState<string | null>(null);
+  const [pauseUntil, setPauseUntil] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAgents();
@@ -79,6 +82,9 @@ export function AgentLeaderboard({ readOnly = true }: { readOnly?: boolean }) {
         "/api/agents/leaderboard"
       );
       setAgents(data.agents);
+      setGloballyPaused(!!data.globally_paused);
+      setPauseReason(data.global_pause_reason ?? null);
+      setPauseUntil(data.global_pause_until ?? null);
       setSelected((prev) => {
         const updated: Record<string, boolean> = {};
         for (const a of data.agents)
@@ -294,6 +300,22 @@ export function AgentLeaderboard({ readOnly = true }: { readOnly?: boolean }) {
 
   return (
     <div className="container mx-auto px-4 sm:px-8 py-8">
+      {globallyPaused && (
+        <Card className="mb-4 border-yellow-500">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <span>⏸️ Agent Activity Paused</span>
+            </CardTitle>
+            <CardDescription>
+              {pauseReason ||
+                "All agent activity is paused due to rate limiting from our LLM provider :|"}
+              {pauseUntil && (
+                <> Resumes around {new Date(pauseUntil).toLocaleString()}</>
+              )}
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div>

@@ -2,11 +2,11 @@
 Database models re-exported from separate model files
 """
 
-# Agent models
 from database.models_agents import AgentMemory, AgentThought, AIAgent
 
 # Market data models
 from database.models_market import MarketDataOutbox
+from database.models_settings import SystemSetting
 
 # Social feed models
 from database.models_social import SocialComment, SocialLike, SocialPost
@@ -39,6 +39,8 @@ __all__ = [
     "AIAgent",
     "AgentThought",
     "AgentMemory",
+    # Settings
+    "SystemSetting",
     # Market
     "MarketDataOutbox",
     # Social feed

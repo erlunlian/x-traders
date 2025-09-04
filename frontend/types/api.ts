@@ -116,6 +116,9 @@ export interface AgentLeaderboardEntry {
 export interface AgentLeaderboardResponse {
   agents: AgentLeaderboardEntry[];
   total: number;
+  globally_paused?: boolean;
+  global_pause_until?: string | null;
+  global_pause_reason?: string | null;
 }
 
 export interface CreateAgentRequest {

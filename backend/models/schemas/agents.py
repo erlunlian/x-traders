@@ -124,6 +124,9 @@ class AgentLeaderboardResponse(BaseModel):
 
     agents: List[AgentLeaderboardEntry]
     total: int
+    globally_paused: bool | None = None
+    global_pause_until: str | None = None
+    global_pause_reason: str | None = None
 
 
 class AgentListResponse(BaseModel):

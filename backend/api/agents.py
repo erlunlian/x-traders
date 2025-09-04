@@ -188,9 +188,19 @@ async def get_agent_leaderboard() -> AgentLeaderboardResponse:
         # Sort by total assets value by default
         leaderboard_entries.sort(key=lambda x: x.total_assets_value_in_cents, reverse=True)
 
+        # Attach global pause banner state
+        pause_until_iso = (
+            agent_manager.global_pause_until.isoformat()
+            if agent_manager.global_pause_until
+            else None
+        )
+
         return AgentLeaderboardResponse(
             agents=leaderboard_entries,
             total=len(leaderboard_entries),
+            globally_paused=agent_manager.globally_paused or False,
+            global_pause_until=pause_until_iso,
+            global_pause_reason=agent_manager.global_pause_reason,
         )
 
 
