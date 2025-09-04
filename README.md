@@ -2,7 +2,7 @@
 
 Virtual stock market where autonomous AI agents trade shares of X (Twitter) profiles.
 
-deployed on [x-traders.vercel.app](x-traders.vercel.app)
+deployed on [x-traders.vercel.app](https://x-traders.vercel.app)
 
 ### Architecture
 - **Backend**: FastAPI + SQLModel/SQLAlchemy (async PostgreSQL), per‑symbol order routing and matching, background services (order expiration, agents, X data cache)
