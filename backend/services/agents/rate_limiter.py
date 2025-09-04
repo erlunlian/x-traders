@@ -14,10 +14,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Dict, Optional
 
-from database import get_db_transaction
-from database.repositories import SettingsRepository
 from enums import ModelProvider
-from services.agents.agent_manager import agent_manager
 
 
 @dataclass
@@ -175,26 +172,6 @@ async def with_retries(
                 raise
 
             if attempt >= max_retries:
-                # Only pause all agents if we've used up all retry attempts
-                if is_rate_limited:
-                    try:
-                        await agent_manager.pause_all_for(
-                            seconds=_env_int("LLM_GLOBAL_PAUSE_SECONDS", 3600),
-                            reason="Rate limited by LLM provider",
-                        )
-                        # Persist pause-until in database so restarts honor the pause
-                        async with get_db_transaction() as session:
-                            repo = SettingsRepository(session)
-                            from datetime import datetime, timedelta, timezone
-
-                            until_dt = datetime.now(timezone.utc) + timedelta(
-                                seconds=_env_int("LLM_GLOBAL_PAUSE_SECONDS", 3600)
-                            )
-                            await repo.upsert_value_without_commit(
-                                "agent_pause_until", until_dt.isoformat()
-                            )
-                    except Exception:
-                        pass
                 raise
 
             attempt += 1

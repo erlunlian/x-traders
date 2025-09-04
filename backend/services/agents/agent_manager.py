@@ -3,6 +3,7 @@ Agent manager service that orchestrates all AI agents
 """
 
 import asyncio
+import os
 import traceback
 from collections import deque
 from datetime import datetime, timedelta, timezone
@@ -192,11 +193,43 @@ class AgentManager:
         autonomous_agent = AutonomousAgent(agent)
         self.agents[agent.agent_id] = autonomous_agent
 
-        # Start the agent's run_forever task
-        task = asyncio.create_task(autonomous_agent.run_forever(), name=f"agent_{agent.name}")
+        # Start the agent's run task wrapped to catch rate limit errors
+        task = asyncio.create_task(
+            self._agent_task_wrapper(autonomous_agent), name=f"agent_{agent.name}"
+        )
         self.running_tasks[agent.agent_id] = task
 
         print(f"Started agent: {agent.name} (ID: {agent.agent_id})")
+
+    def _is_rate_limit_error(self, error: BaseException) -> bool:
+        """Heuristic to detect provider 429/rate limit errors from exception message."""
+        message = str(error).lower()
+        return any(
+            token in message for token in ["429", "rate limit", "too many requests", "retry-after"]
+        )
+
+    async def _agent_task_wrapper(self, autonomous_agent: AutonomousAgent) -> None:
+        """Run an agent and pause all agents if a 429-like error occurs."""
+        try:
+            await autonomous_agent.run_forever()
+        except Exception as e:
+            if self._is_rate_limit_error(e):
+                try:
+                    seconds = int(os.getenv("LLM_GLOBAL_PAUSE_SECONDS", "3600"))
+                    await self.pause_all_for(seconds, "Rate limited by LLM provider")
+                    # Persist pause-until in DB
+                    until_dt = datetime.now(timezone.utc) + timedelta(seconds=seconds)
+                    async with get_db_transaction() as session:
+                        repo = SettingsRepository(session)
+                        await repo.upsert_value_without_commit(
+                            "agent_pause_until", until_dt.isoformat()
+                        )
+                except Exception:
+                    pass
+                # Swallow error to avoid noisy crash/restart loops while paused
+                return
+            # Non-rate-limit exceptions should propagate to monitor
+            raise
 
     async def stop_agent(self, agent_id: UUID) -> None:
         """Stop a single agent"""
